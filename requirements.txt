@@ -1,4 +1,13 @@
 deepagents
 tavily-python
 python-dotenv
+chainlit
+langchain-google-genai
+langsmith
+pytz
+requests
+google-api-python-client
+google-auth-httplib2
+google-auth-oauthlib
+python-dateutil
 

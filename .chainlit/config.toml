@@ -1,0 +1,61 @@
+[project]
+# Whether to enable telemetry (default: true). No personal data is collected.
+enable_telemetry = false
+
+# List of environment variables to be provided by each user to use the app.
+user_env = ["GOOGLE_API_KEY", "TAVILY_API_KEY"]
+
+[features]
+# Show the prompt playground
+prompt_playground = true
+
+# Process and display HTML in messages
+# WARNING: Only set to true if you trust the users of your app.
+unsafe_allow_html = false
+
+# Authorize users to use the app based on their email
+[features.authorization]
+enabled = false
+
+# Process and display file uploads
+[features.file_upload]
+enabled = true
+accept = ["*/*"]
+max_size_mb = 100
+max_files = 10
+
+[UI]
+# Name of the app and chatbot.
+name = "Deep Agent"
+
+# Show the prompt playground
+show_prompt_playground = true
+
+# Description of the app and chatbot. This is used for HTML tags.
+description = "A Deep Agent assistant powered by LangGraph DeepAgents"
+
+# Large size content are by default collapsed for a cleaner ui
+default_collapse_content = true
+
+# The default value for the expand messages settings.
+default_expand_messages = false
+
+# Hide the chain of thought details from the user in the UI.
+hide_chain_of_thought = false
+
+# Link to your github repo. This will add a github button in the UI's header.
+# github = "https://github.com/your-username/your-repo"
+
+# Specify a CSS file that can be used to customize the user interface.
+# The CSS file can be served either via a URL or a local path. A local path must be relative to the
+# directory where chainlit is run from.
+# custom_css = "/path/to/custom.css"
+# custom_js = "/path/to/custom.js"
+
+# Override default MIME types for code highlighting. See https://github.com/react-syntax-highlighter/react-syntax-highlighter/blob/master/SUPPORTED_LANGUAGES.md
+# for a list of supported languages.
+# code_highlighting = ["python:python", "javascript:javascript"]
+
+[meta]
+generated_by = "1.0.0"
+

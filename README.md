@@ -24,6 +24,12 @@ The agent uses a Composite Backend to remember your preferences. When you say, "
 - **Drafting**: "Draft a polite reply to Sarah saying I'll be late, using my usual tone."
 - **Context Management**: For long emails (e.g., 5,000 words), the agent spawns a Sub-Agent to read it, keeping its own "short-term memory" clean.
 
+### 📅 Google Calendar Integration
+- **Create Events**: "Schedule a 30-minute design review next week"
+- **View Schedule**: "What's on my calendar today?"
+- **Find Availability**: "When can I work out this week?"
+- **Summarize**: "What does my week look like?"
+
 ### 🔄 Planning Loop
 Every request follows this cycle:
 1. **Plan**: Creates a todo list (e.g., "I need to 1. Check mail, 2. Check user_profile for tone, 3. Write draft.")
@@ -47,7 +53,13 @@ yet-another-agent/
 ├── agent_logic.py      # The Brain: LangGraph + DeepAgent config
 ├── tools/
 │   ├── gmail_tools.py  # Custom tools for reading/searching mail
-│   └── memory_tools.py # Filesystem tools (read_file, write_file)
+│   ├── memory_tools.py # Filesystem tools (read_file, write_file)
+│   ├── calendar_auth.py # Google Calendar OAuth authentication
+│   ├── calendar_utils.py # Shared calendar utilities
+│   ├── create_update_calendar_event.py # Create/update events
+│   ├── get_calendar_schedule.py # Get schedule for time window
+│   ├── find_available_time_slots.py # Find free time slots
+│   └── summarize_calendar.py # Natural language calendar summary
 ├── memories/           # 🧠 WHERE THE AGENT GROWS
 │   └── profile.txt     # Local file where agent saves your preferences
 └── credentials.json    # Your Google Cloud Gmail OAuth file
@@ -92,6 +104,17 @@ GOOGLE_API_KEY=your_api_key_here
 4. Create OAuth 2.0 credentials (Desktop application)
 5. Download the credentials file and save it as `credentials.json` in the root directory
 
+#### Google Calendar API Setup
+1. In the same Google Cloud project, enable the **Google Calendar API**
+2. Use the same OAuth 2.0 credentials file (`credentials.json`) - no need to create new credentials
+3. Add the following to your `.env` file (optional, defaults shown):
+   ```bash
+   GOOGLE_CALENDAR_CREDENTIALS_PATH=credentials.json
+   GOOGLE_CALENDAR_TOKEN_PATH=token.json
+   ```
+4. On first run, the app will open a browser window for OAuth authentication
+5. After authentication, a `token.json` file will be created (automatically refreshed when needed)
+
 ### 4. Run the Application
 
 ```bash
@@ -118,6 +141,18 @@ Agent: [Searches Gmail, reads relevant emails, provides summary]
 ```
 You: "Draft a polite reply to Sarah saying I'll be late, using my usual tone"
 Agent: [Reads your profile for tone preferences, drafts email]
+```
+
+### Calendar Management
+```
+You: "Schedule a 30-minute design review next week"
+Agent: [Finds available slots, creates calendar event]
+
+You: "What's on my calendar today?"
+Agent: [Retrieves and summarizes today's events]
+
+You: "When can I work out this week?"
+Agent: [Analyzes schedule, finds available 1-hour slots]
 ```
 
 ## Privacy & Security
@@ -149,7 +184,7 @@ The agent follows the Deep Agent architecture pattern:
 - [ ] Local memory persistence
 - [ ] Enhanced email triage capabilities
 - [ ] Multi-email thread analysis
-- [ ] Calendar integration
+- [x] Calendar integration
 - [ ] Additional tool integrations
 - [ ] Advanced preference learning
 
