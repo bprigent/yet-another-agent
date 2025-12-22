@@ -70,8 +70,29 @@ def get_calendar_service():
                     "and place it in the project root or set GOOGLE_CALENDAR_CREDENTIALS_PATH."
                 )
             
-            flow = InstalledAppFlow.from_client_secrets_file(creds_path, SCOPES)
-            creds = flow.run_local_server(port=0)
+            try:
+                flow = InstalledAppFlow.from_client_secrets_file(creds_path, SCOPES)
+                # Check if we're in a headless environment (no display)
+                # In Chainlit/server environments, OAuth flow won't work
+                import sys
+                if not sys.stdout.isatty() or os.getenv('CHAINLIT') or os.getenv('HEADLESS'):
+                    raise RuntimeError(
+                        "OAuth authentication requires user interaction (browser). "
+                        "Please run the authentication flow manually in a terminal first, "
+                        "or ensure token.json exists with valid credentials."
+                    )
+                creds = flow.run_local_server(port=0)
+            except Exception as e:
+                # Wrap any OAuth errors in a clear message
+                error_msg = str(e)
+                if "run_local_server" in error_msg or "OAuth" in error_msg or "browser" in error_msg.lower():
+                    raise RuntimeError(
+                        "Calendar authentication failed. OAuth requires browser interaction. "
+                        "Please authenticate manually by running a script that calls get_calendar_service() "
+                        "in a terminal, or ensure token.json contains valid credentials. "
+                        f"Original error: {error_msg}"
+                    )
+                raise
         
         # Save the credentials for the next run
         try:
