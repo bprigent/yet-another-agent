@@ -16,7 +16,8 @@ def create_update_calendar_event(
     location: str | None = None,
     description: str | None = None,
     calendar_id: str | None = None,
-    event_id: str | None = None
+    event_id: str | None = None,
+    attendees: list[str] | None = None
 ) -> str:
     """Create a new calendar event or update an existing one.
     
@@ -31,6 +32,7 @@ def create_update_calendar_event(
         description: Optional description or notes for the event
         calendar_id: Optional calendar ID (defaults to 'primary')
         event_id: Optional event ID for updating existing events
+        attendees: Optional list of email addresses to invite to the event
         
     Returns:
         Formatted string with event details including event ID and link
@@ -71,15 +73,22 @@ def create_update_calendar_event(
             event_body['location'] = location
         if description:
             event_body['description'] = description
+        if attendees:
+            # Convert list of email strings to Google Calendar API format
+            event_body['attendees'] = [{'email': email.strip()} for email in attendees if email.strip()]
         
         # Create or update event
+        # Send invitations to attendees if any are provided
+        send_updates = 'all' if attendees else 'none'
+        
         if event_id:
             # Update existing event
             try:
                 event = service.events().update(
                     calendarId=cal_id,
                     eventId=event_id,
-                    body=event_body
+                    body=event_body,
+                    sendUpdates=send_updates
                 ).execute()
                 action = "Updated"
             except Exception as e:
@@ -89,7 +98,8 @@ def create_update_calendar_event(
             try:
                 event = service.events().insert(
                     calendarId=cal_id,
-                    body=event_body
+                    body=event_body,
+                    sendUpdates=send_updates
                 ).execute()
                 action = "Created"
             except Exception as e:
@@ -109,6 +119,9 @@ def create_update_calendar_event(
             result += f"  Location: {location}\n"
         if description:
             result += f"  Description: {description[:100]}{'...' if len(description) > 100 else ''}\n"
+        if attendees:
+            attendee_emails = [email.strip() for email in attendees if email.strip()]
+            result += f"  Attendees: {', '.join(attendee_emails)}\n"
         result += f"  Event ID: {event_id_result}\n"
         if event_link != 'N/A':
             result += f"  Link: {event_link}"

@@ -7,8 +7,8 @@ import pytz
 def get_current_time(timezone: str = "UTC") -> str:
     """Get the current date and time in a specified timezone.
     
-    Use this tool when the user asks about the current time, date, or what time it is now.
-    This is useful for time-sensitive queries or when the user needs to know the current date/time.
+    Use this tool when you need to know the current time, date for a specific task. 
+    If no timezone is specified by Benjamin, use the location tool to know where Benjamin is. 
     
     Args:
         timezone: Optional timezone name (e.g., "UTC", "America/New_York", "Europe/London", "Asia/Tokyo").

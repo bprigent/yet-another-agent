@@ -6,7 +6,7 @@ from dotenv import load_dotenv
 import chainlit as cl
 from deepagents import create_deep_agent
 from langchain_google_genai import ChatGoogleGenerativeAI
-from langchain_core.messages import HumanMessage, AIMessage, ToolMessage
+from langchain_core.messages import HumanMessage, AIMessage, ToolMessage, SystemMessage
 from tools.internet_search import internet_search
 from tools.get_current_time import get_current_time
 from tools.get_user_ip import get_user_ip
@@ -19,6 +19,13 @@ from tools.get_calendar_schedule import (
 )
 from tools.find_available_time_slots import find_available_time_slots
 from tools.summarize_calendar import summarize_calendar
+from tools.memory_tools import (
+    write_memory_file,
+    read_memory_file,
+    list_memory_files,
+    edit_memory_file,
+)
+from tools.calculator import calculator
 
 # Load environment variables
 load_dotenv()
@@ -32,38 +39,24 @@ os.environ.setdefault("LANGCHAIN_PROJECT", "deep-agent")
 # Global agent instance
 _agent = None
 
-# System prompt for Benjamin Prigent's personal assistant
-SYSTEM_PROMPT = """You are a smart, proactive personal assistant for Benjamin Prigent. Your primary role is to help Benjamin manage his daily life, schedule, and tasks efficiently.
 
-**Your Core Responsibilities:**
-- Manage Benjamin's calendar, e-mails, and tasks
-- Provide helpful information through web searches when needed
-- Answer questions accurately and concisely
-- Proactively suggest solutions and anticipate needs
-- Use tools effectively to accomplish tasks without unnecessary steps
+def load_system_prompt() -> str:
+    """Load the system prompt from prompts/system_prompt.txt."""
+    prompt_path = os.path.join(os.path.dirname(__file__), "prompts", "system_prompt.txt")
+    try:
+        with open(prompt_path, "r", encoding="utf-8") as f:
+            return f.read().strip()
+    except FileNotFoundError:
+        raise FileNotFoundError(
+            f"System prompt file not found at {prompt_path}. "
+            "Please ensure prompts/system_prompt.txt exists."
+        )
+    except Exception as e:
+        raise RuntimeError(f"Error loading system prompt from {prompt_path}: {e}")
 
-**Your Personality & Communication Style:**
-- Be professional yet friendly and approachable
-- Be concise but thorough - Benjamin values efficiency
-- Take initiative - if you see a better way to accomplish something, suggest it
-- When scheduling, consider time zones and provide clear, actionable information
-- If a tool fails, explain what went wrong and suggest alternatives
 
-**Key Guidelines:**
-1. Always use the appropriate tools for calendar operations - don't guess or make assumptions
-2. When asked about schedules, provide clear, formatted information with times and dates
-3. For calendar queries, use natural date references like "today", "tomorrow", "next week"
-4. When deleting events, confirm the action and provide details of what was deleted
-5. If you encounter errors, explain them clearly and suggest next steps
-6. Remember that you're working with Benjamin's personal calendar - be respectful of privacy and accuracy
-
-**Planning Approach:**
-- Break down complex requests into clear steps
-- Execute tools in logical order
-- Verify results before presenting them
-- Reflect on whether the task is complete
-
-You are here to make Benjamin's life easier and more organized. Be helpful, efficient, and reliable."""
+# Load system prompt at module level
+SYSTEM_PROMPT = load_system_prompt()
 
 
 def get_agent():
@@ -101,6 +94,11 @@ def get_agent():
                 delete_calendar_event,
                 find_available_time_slots,
                 summarize_calendar,
+                write_memory_file,
+                read_memory_file,
+                list_memory_files,
+                edit_memory_file,
+                calculator,
             ]
         )
     return _agent
@@ -110,6 +108,12 @@ def get_agent():
 async def start():
     """Initialize the chat session."""
     agent = get_agent()
+    
+    # Initialize conversation history with system prompt
+    cl.user_session.set("message_history", [
+        SystemMessage(content=SYSTEM_PROMPT)
+    ])
+    
     await cl.Message(
         content="Hello Benjamin! I'm your personal assistant. How can I assist you today?",
     ).send()
@@ -125,15 +129,15 @@ async def main(message: cl.Message):
     await msg.send()
     
     try:
-        # Invoke the agent with system prompt and user message
-        # Include system prompt as the first message to establish context
-        from langchain_core.messages import SystemMessage
+        # Get conversation history from session
+        message_history = cl.user_session.get("message_history", [])
         
-        messages = [
-            SystemMessage(content=SYSTEM_PROMPT),
-            HumanMessage(content=message.content)
-        ]
-        response = agent.invoke({"messages": messages})
+        # Add user's message to history
+        user_msg = HumanMessage(content=message.content)
+        message_history.append(user_msg)
+        
+        # Invoke the agent with full conversation history
+        response = agent.invoke({"messages": message_history})
         
         # Debug: Log response structure for troubleshooting
         import logging
@@ -255,6 +259,12 @@ async def main(message: cl.Message):
                 if "messages" in response:
                     all_contents = []
                     for m in response["messages"]:
+                        # Skip SystemMessages - don't show system prompts to user
+                        if isinstance(m, SystemMessage):
+                            continue
+                        if isinstance(m, dict) and m.get("type") == "system":
+                            continue
+                        
                         if hasattr(m, "content") and m.content:
                             all_contents.append(str(m.content))
                         elif isinstance(m, dict) and m.get("content"):
@@ -290,6 +300,26 @@ async def main(message: cl.Message):
         # Update the message with the response
         msg.content = content
         await msg.update()
+        
+        # Update conversation history with the full response state
+        # The response contains all messages including the new AI response
+        if isinstance(response, dict) and "messages" in response:
+            # Use the response messages as the new history (includes system prompt, user messages, and AI responses)
+            # Filter out SystemMessages from being stored (we'll add it back when needed)
+            updated_history = []
+            for msg_item in response["messages"]:
+                # Skip SystemMessages when storing (we'll add it fresh each time)
+                if not isinstance(msg_item, SystemMessage):
+                    updated_history.append(msg_item)
+            
+            # Always include system prompt at the start
+            cl.user_session.set("message_history", [SystemMessage(content=SYSTEM_PROMPT)] + updated_history)
+        else:
+            # Fallback: just add the user message and create an AIMessage from content
+            if message_history:
+                ai_response = AIMessage(content=content)
+                message_history.append(ai_response)
+                cl.user_session.set("message_history", message_history)
         
     except Exception as e:
         error_str = str(e)

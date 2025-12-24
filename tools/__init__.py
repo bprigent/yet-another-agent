@@ -12,6 +12,13 @@ from tools.get_calendar_schedule import (
 )
 from tools.find_available_time_slots import find_available_time_slots
 from tools.summarize_calendar import summarize_calendar
+from tools.memory_tools import (
+    write_memory_file,
+    read_memory_file,
+    list_memory_files,
+    edit_memory_file,
+)
+from tools.calculator import calculator
 
 __all__ = [
     "internet_search",
@@ -24,5 +31,10 @@ __all__ = [
     "delete_calendar_event",
     "find_available_time_slots",
     "summarize_calendar",
+    "write_memory_file",
+    "read_memory_file",
+    "list_memory_files",
+    "edit_memory_file",
+    "calculator",
 ]
 
