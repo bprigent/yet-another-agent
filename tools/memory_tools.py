@@ -4,6 +4,8 @@ import os
 from pathlib import Path
 from typing import Optional
 from langchain_core.tools import tool
+from tools.core.base_tool import ToolResult, log_tool_call
+from tools.schemas import MemoryFileInput
 
 
 # Base directory for memories
@@ -11,6 +13,40 @@ MEMORIES_DIR = Path(__file__).parent.parent / "memories"
 MEMORIES_DIR.mkdir(exist_ok=True)
 
 
+def sanitize_path(file_path: str) -> Path:
+    """Sanitize and validate file path to prevent directory traversal.
+    
+    Args:
+        file_path: Relative path within memories/ directory
+        
+    Returns:
+        Sanitized Path object
+        
+    Raises:
+        ValueError: If path is invalid or attempts directory traversal
+    """
+    # Remove leading slashes and normalize
+    clean_path = file_path.lstrip("/").replace("..", "")
+    
+    # Remove "memories/" prefix if present
+    if clean_path.startswith("memories/"):
+        clean_path = clean_path.replace("memories/", "", 1)
+    
+    # Get the full path
+    full_path = MEMORIES_DIR / clean_path
+    
+    # Resolve to absolute path and check it's within MEMORIES_DIR
+    try:
+        resolved = full_path.resolve()
+        base_resolved = MEMORIES_DIR.resolve()
+        resolved.relative_to(base_resolved)
+    except ValueError:
+        raise ValueError(f"Path {file_path} is outside allowed directory")
+    
+    return resolved
+
+
+@log_tool_call("write_memory_file")
 @tool
 def write_memory_file(file_path: str, content: str) -> str:
     """
@@ -31,17 +67,15 @@ def write_memory_file(file_path: str, content: str) -> str:
         content: The COMPLETE content to write to the file (will replace everything)
     
     Returns:
-        Success message with the file path
+        Success message with the file path or error message
     """
     try:
-        # Ensure the path is relative to memories directory
-        if file_path.startswith("/"):
-            file_path = file_path.lstrip("/")
-        if file_path.startswith("memories/"):
-            file_path = file_path.replace("memories/", "", 1)
-        
-        # Get the full path
-        full_path = MEMORIES_DIR / file_path
+        # Validate and sanitize path
+        try:
+            input_data = MemoryFileInput(file_path=file_path)
+            full_path = sanitize_path(input_data.file_path)
+        except ValueError as e:
+            return ToolResult(success=False, error=str(e)).to_string()
         
         # Ensure parent directories exist
         full_path.parent.mkdir(parents=True, exist_ok=True)
@@ -49,11 +83,19 @@ def write_memory_file(file_path: str, content: str) -> str:
         # Write the file
         full_path.write_text(content, encoding="utf-8")
         
-        return f"Successfully wrote to {full_path.relative_to(MEMORIES_DIR.parent)}"
+        return ToolResult(
+            success=True,
+            data={"file_path": str(full_path.relative_to(MEMORIES_DIR.parent))},
+            metadata={"bytes_written": len(content.encode("utf-8"))}
+        ).to_string()
     except Exception as e:
-        return f"Error writing file: {str(e)}"
+        return ToolResult(
+            success=False,
+            error=f"Error writing file: {str(e)}"
+        ).to_string()
 
 
+@log_tool_call("read_memory_file")
 @tool
 def read_memory_file(file_path: str) -> str:
     """
@@ -66,23 +108,34 @@ def read_memory_file(file_path: str) -> str:
         The contents of the file, or an error message if the file doesn't exist
     """
     try:
-        # Ensure the path is relative to memories directory
-        if file_path.startswith("/"):
-            file_path = file_path.lstrip("/")
-        if file_path.startswith("memories/"):
-            file_path = file_path.replace("memories/", "", 1)
-        
-        # Get the full path
-        full_path = MEMORIES_DIR / file_path
+        # Validate and sanitize path
+        try:
+            input_data = MemoryFileInput(file_path=file_path)
+            full_path = sanitize_path(input_data.file_path)
+        except ValueError as e:
+            return ToolResult(success=False, error=str(e)).to_string()
         
         if not full_path.exists():
-            return f"File {file_path} does not exist in memories directory."
+            return ToolResult(
+                success=False,
+                error=f"File {file_path} does not exist in memories directory."
+            ).to_string()
         
-        return full_path.read_text(encoding="utf-8")
+        content = full_path.read_text(encoding="utf-8")
+        
+        return ToolResult(
+            success=True,
+            data={"content": content, "file_path": str(full_path.relative_to(MEMORIES_DIR))},
+            metadata={"bytes_read": len(content.encode("utf-8"))}
+        ).to_string()
     except Exception as e:
-        return f"Error reading file: {str(e)}"
+        return ToolResult(
+            success=False,
+            error=f"Error reading file: {str(e)}"
+        ).to_string()
 
 
+@log_tool_call("list_memory_files")
 @tool
 def list_memory_files(directory: str = "") -> str:
     """
@@ -95,35 +148,59 @@ def list_memory_files(directory: str = "") -> str:
         A list of files in the directory
     """
     try:
-        # Ensure the path is relative to memories directory
-        if directory.startswith("/"):
-            directory = directory.lstrip("/")
-        if directory.startswith("memories/"):
-            directory = directory.replace("memories/", "", 1)
+        # Sanitize directory path
+        if directory:
+            if directory.startswith("/"):
+                directory = directory.lstrip("/")
+            if directory.startswith("memories/"):
+                directory = directory.replace("memories/", "", 1)
+            # Validate path
+            try:
+                sanitize_path(directory)
+            except ValueError as e:
+                return ToolResult(success=False, error=str(e)).to_string()
         
         # Get the full path
         target_dir = MEMORIES_DIR / directory if directory else MEMORIES_DIR
         
         if not target_dir.exists():
-            return f"Directory {directory} does not exist in memories directory."
+            return ToolResult(
+                success=False,
+                error=f"Directory {directory} does not exist in memories directory."
+            ).to_string()
         
         files = []
+        directories = []
         for item in sorted(target_dir.iterdir()):
             if item.is_file():
                 rel_path = item.relative_to(MEMORIES_DIR)
                 files.append(str(rel_path))
             elif item.is_dir():
                 rel_path = item.relative_to(MEMORIES_DIR)
-                files.append(f"{rel_path}/ (directory)")
+                directories.append(f"{rel_path}/ (directory)")
         
-        if not files:
-            return f"No files found in {directory or 'memories/'}"
+        all_items = files + directories
         
-        return "\n".join(files)
+        if not all_items:
+            return ToolResult(
+                success=True,
+                data={"files": [], "directories": []},
+                metadata={"directory": directory or "memories/"}
+            ).to_string()
+        
+        return ToolResult(
+            success=True,
+            data={"items": all_items, "file_count": len(files), "directory_count": len(directories)},
+            metadata={"directory": directory or "memories/"}
+        ).to_string()
     except Exception as e:
-        return f"Error listing files: {str(e)}"
+        return ToolResult(
+            success=False,
+            error=f"Error listing files: {str(e)}"
+        ).to_string()
 
 
+@log_tool_call("edit_memory_file")
 @tool
 def edit_memory_file(file_path: str, old_string: str, new_string: str) -> str:
     """
@@ -153,31 +230,48 @@ def edit_memory_file(file_path: str, old_string: str, new_string: str) -> str:
         Success message or error message
     """
     try:
-        # Ensure the path is relative to memories directory
-        if file_path.startswith("/"):
-            file_path = file_path.lstrip("/")
-        if file_path.startswith("memories/"):
-            file_path = file_path.replace("memories/", "", 1)
-        
-        # Get the full path
-        full_path = MEMORIES_DIR / file_path
+        # Validate and sanitize path
+        try:
+            input_data = MemoryFileInput(file_path=file_path)
+            full_path = sanitize_path(input_data.file_path)
+        except ValueError as e:
+            return ToolResult(success=False, error=str(e)).to_string()
         
         if not full_path.exists():
-            return f"File {file_path} does not exist in memories directory."
+            return ToolResult(
+                success=False,
+                error=f"File {file_path} does not exist in memories directory."
+            ).to_string()
         
         # Read current content
         content = full_path.read_text(encoding="utf-8")
         
         # Replace the string
         if old_string not in content:
-            return f"String not found in file. The file content does not contain the exact string to replace."
+            return ToolResult(
+                success=False,
+                error="String not found in file. The file content does not contain the exact string to replace."
+            ).to_string()
         
+        # Count occurrences for metadata
+        occurrences = content.count(old_string)
         new_content = content.replace(old_string, new_string)
         
         # Write back
         full_path.write_text(new_content, encoding="utf-8")
         
-        return f"Successfully updated {full_path.relative_to(MEMORIES_DIR.parent)}"
+        return ToolResult(
+            success=True,
+            data={"file_path": str(full_path.relative_to(MEMORIES_DIR.parent))},
+            metadata={
+                "replacements_made": occurrences,
+                "bytes_before": len(content.encode("utf-8")),
+                "bytes_after": len(new_content.encode("utf-8"))
+            }
+        ).to_string()
     except Exception as e:
-        return f"Error editing file: {str(e)}"
+        return ToolResult(
+            success=False,
+            error=f"Error editing file: {str(e)}"
+        ).to_string()
 

@@ -1,4 +1,4 @@
-"""Tool to create or update calendar events."""
+"""Tool to create or update calendar events with structured results."""
 
 from .calendar_auth import get_calendar_service
 from .calendar_utils import (
@@ -7,8 +7,14 @@ from .calendar_utils import (
     get_default_calendar_id,
     validate_time_range
 )
+from tools.core.base_tool import ToolResult, log_tool_call
+from tools.schemas import CalendarEventInput
+from datetime import datetime
+from langchain_core.tools import tool
 
 
+@log_tool_call("create_update_calendar_event")
+@tool
 def create_update_calendar_event(
     title: str,
     start_time: str,
@@ -36,9 +42,6 @@ def create_update_calendar_event(
         
     Returns:
         Formatted string with event details including event ID and link
-        
-    Raises:
-        ValueError: If time format is invalid or start_time >= end_time
     """
     try:
         # Parse datetime inputs
@@ -47,7 +50,10 @@ def create_update_calendar_event(
         
         # Validate time range
         if not validate_time_range(start_dt, end_dt):
-            return f"Error: Start time ({start_time}) must be before end time ({end_time})"
+            return ToolResult(
+                success=False,
+                error=f"Start time ({start_time}) must be before end time ({end_time})"
+            ).to_string()
         
         # Get calendar service
         service = get_calendar_service()
@@ -92,7 +98,16 @@ def create_update_calendar_event(
                 ).execute()
                 action = "Updated"
             except Exception as e:
-                return f"Error updating event: {str(e)}. Event ID '{event_id}' may not exist."
+                error_msg = str(e)
+                if '404' in error_msg or 'not found' in error_msg.lower():
+                    return ToolResult(
+                        success=False,
+                        error=f"Event ID '{event_id}' not found. It may have been deleted or the ID is incorrect."
+                    ).to_string()
+                return ToolResult(
+                    success=False,
+                    error=f"Error updating event: {error_msg}"
+                ).to_string()
         else:
             # Create new event
             try:
@@ -103,7 +118,10 @@ def create_update_calendar_event(
                 ).execute()
                 action = "Created"
             except Exception as e:
-                return f"Error creating event: {str(e)}"
+                return ToolResult(
+                    success=False,
+                    error=f"Error creating event: {str(e)}"
+                ).to_string()
         
         # Format response
         event_id_result = event.get('id', 'N/A')
@@ -111,27 +129,57 @@ def create_update_calendar_event(
         start_formatted = event['start'].get('dateTime', event['start'].get('date', 'N/A'))
         end_formatted = event['end'].get('dateTime', event['end'].get('date', 'N/A'))
         
-        result = f"✓ {action} calendar event:\n"
-        result += f"  Title: {title}\n"
-        result += f"  Start: {start_formatted}\n"
-        result += f"  End: {end_formatted}\n"
+        formatted_msg = f"✓ {action} calendar event:\n"
+        formatted_msg += f"  Title: {title}\n"
+        formatted_msg += f"  Start: {start_formatted}\n"
+        formatted_msg += f"  End: {end_formatted}\n"
         if location:
-            result += f"  Location: {location}\n"
+            formatted_msg += f"  Location: {location}\n"
         if description:
-            result += f"  Description: {description[:100]}{'...' if len(description) > 100 else ''}\n"
+            formatted_msg += f"  Description: {description[:100]}{'...' if len(description) > 100 else ''}\n"
         if attendees:
             attendee_emails = [email.strip() for email in attendees if email.strip()]
-            result += f"  Attendees: {', '.join(attendee_emails)}\n"
-        result += f"  Event ID: {event_id_result}\n"
+            formatted_msg += f"  Attendees: {', '.join(attendee_emails)}\n"
+        formatted_msg += f"  Event ID: {event_id_result}\n"
         if event_link != 'N/A':
-            result += f"  Link: {event_link}"
+            formatted_msg += f"  Link: {event_link}"
         
-        return result
+        return ToolResult(
+            success=True,
+            data={
+                "event_id": event_id_result,
+                "event_link": event_link,
+                "title": title,
+                "start_time": start_formatted,
+                "end_time": end_formatted,
+                "location": location,
+                "description": description,
+                "attendees": [email.strip() for email in attendees] if attendees else None,
+                "action": action,
+                "formatted": formatted_msg
+            },
+            metadata={"calendar_id": cal_id, "event_id_provided": event_id is not None}
+        ).to_string()
         
     except ValueError as e:
-        return f"Error: Invalid time format - {str(e)}"
+        return ToolResult(
+            success=False,
+            error=f"Invalid time format: {str(e)}"
+        ).to_string()
     except FileNotFoundError as e:
-        return f"Error: {str(e)}"
+        return ToolResult(
+            success=False,
+            error=f"Calendar authentication error: {str(e)}"
+        ).to_string()
     except Exception as e:
-        return f"Error creating/updating calendar event: {str(e)}"
+        error_msg = str(e)
+        if event_id and ('404' in error_msg or 'not found' in error_msg.lower()):
+            return ToolResult(
+                success=False,
+                error=f"Event ID '{event_id}' not found. It may have been deleted or the ID is incorrect."
+            ).to_string()
+        return ToolResult(
+            success=False,
+            error=f"Error creating/updating calendar event: {error_msg}"
+        ).to_string()
 

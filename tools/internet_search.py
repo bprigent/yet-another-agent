@@ -1,8 +1,10 @@
-"""Internet search tool using Tavily."""
+"""Internet search tool using Tavily with structured results."""
 
 from tavily import TavilyClient
 import os
 from langchain_core.tools import tool
+from tools.core.base_tool import ToolResult, log_tool_call
+from pydantic import BaseModel, Field
 
 # Initialize Tavily client
 _tavily_client = None
@@ -19,6 +21,7 @@ def get_tavily_client():
     return _tavily_client
 
 
+@log_tool_call("internet_search")
 @tool
 def internet_search(query: str) -> str:
     """Search the web for current information using Tavily.
@@ -30,9 +33,16 @@ def internet_search(query: str) -> str:
         query: The search query string
         
     Returns:
-        Search results as a formatted string
+        Search results as a formatted string with structured success/error information
     """
     try:
+        # Validate query
+        if not query or not query.strip():
+            return ToolResult(
+                success=False,
+                error="Search query cannot be empty"
+            ).to_string()
+        
         client = get_tavily_client()
         response = client.search(
             query=query,
@@ -45,12 +55,43 @@ def internet_search(query: str) -> str:
             title = result.get("title", "No title")
             url = result.get("url", "")
             content = result.get("content", "")
-            results.append(f"**{title}**\n{url}\n{content}\n")
+            results.append({
+                "title": title,
+                "url": url,
+                "content": content
+            })
         
         if not results:
-            return "No results found for your query."
+            return ToolResult(
+                success=True,
+                data={"results": [], "query": query},
+                metadata={"result_count": 0}
+            ).to_string()
         
-        return "\n".join(results)
+        # Format results for display
+        formatted_results = []
+        for result in results:
+            formatted_results.append(
+                f"**{result['title']}**\n{result['url']}\n{result['content']}\n"
+            )
+        
+        return ToolResult(
+            success=True,
+            data={
+                "results": results,
+                "formatted": "\n".join(formatted_results),
+                "query": query
+            },
+            metadata={"result_count": len(results)}
+        ).to_string()
+    except ValueError as e:
+        return ToolResult(
+            success=False,
+            error=f"Configuration error: {str(e)}"
+        ).to_string()
     except Exception as e:
-        return f"Error performing search: {str(e)}"
+        return ToolResult(
+            success=False,
+            error=f"Error performing search: {str(e)}"
+        ).to_string()
 

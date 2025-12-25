@@ -1,12 +1,20 @@
-"""Tool to get unread emails."""
+"""Tool to get unread emails with structured results."""
 
 from typing import List, Dict
 from langchain_core.tools import tool
 from .mail_auth import get_gmail_service
 from email.utils import parseaddr
 import base64
+from tools.core.base_tool import ToolResult, log_tool_call
+from pydantic import BaseModel, Field, field_validator
 
 
+class UnreadEmailsInput(BaseModel):
+    """Input schema for unread emails query."""
+    max_results: int = Field(default=10, ge=1, le=50, description="Maximum number of emails to return")
+
+
+@log_tool_call("get_unread_emails")
 @tool
 def get_unread_emails(max_results: int = 10) -> str:
     """Get unread emails with their ID, subject line, and sender details.
@@ -24,41 +32,58 @@ def get_unread_emails(max_results: int = 10) -> str:
         - Date received
     """
     try:
-        # Validate max_results
-        if max_results < 1:
-            max_results = 10
-        if max_results > 50:
-            max_results = 50
+        # Validate input
+        try:
+            input_data = UnreadEmailsInput(max_results=max_results)
+        except Exception as e:
+            return ToolResult(
+                success=False,
+                error=f"Validation error: {str(e)}"
+            ).to_string()
         
         # Get Gmail service - wrap in try/except to catch auth errors early
         try:
             service = get_gmail_service()
         except FileNotFoundError as e:
-            return f"Gmail authentication error: {str(e)}. Please ensure credentials.json exists and gmail_token.json is set up."
+            return ToolResult(
+                success=False,
+                error=f"Gmail authentication error: {str(e)}. Please ensure credentials.json exists and gmail_token.json is set up."
+            ).to_string()
         except RuntimeError as e:
-            return f"Gmail authentication error: {str(e)}"
+            return ToolResult(
+                success=False,
+                error=f"Gmail authentication error: {str(e)}"
+            ).to_string()
         except Exception as e:
-            return f"Gmail service initialization error: {str(e)}"
+            return ToolResult(
+                success=False,
+                error=f"Gmail service initialization error: {str(e)}"
+            ).to_string()
         
         # Query for unread messages in INBOX (following official Gmail API pattern)
         query = 'is:unread'
         
-        # List messages with labelIds for INBOX (official Gmail API pattern)
+            # List messages with labelIds for INBOX (official Gmail API pattern)
         try:
             results = service.users().messages().list(
                 userId='me',
                 labelIds=['INBOX'],
                 q=query,
-                maxResults=max_results
+                maxResults=input_data.max_results
             ).execute()
             
             messages = results.get('messages', [])
             
             if not messages:
-                return "No unread emails found."
+                return ToolResult(
+                    success=True,
+                    data={"emails": [], "count": 0},
+                    metadata={"max_results": input_data.max_results}
+                ).to_string()
             
             # Get details for each message
             email_list = []
+            email_data = []
             for msg in messages:
                 msg_id = msg['id']
                 
@@ -90,22 +115,43 @@ def get_unread_emails(max_results: int = 10) -> str:
                     email_entry += f"  Date: {date}\n"
                     
                     email_list.append(email_entry)
+                    email_data.append({
+                        "id": msg_id,
+                        "subject": subject,
+                        "from_name": sender_name,
+                        "from_email": sender_email,
+                        "date": date
+                    })
                     
                 except Exception as e:
                     # If we can't get details for a specific message, skip it
                     email_list.append(f"Email ID: {msg_id}\n  Error retrieving details: {str(e)}\n")
                     continue
             
-            # Build result
-            result = f"Found {len(email_list)} unread email(s):\n\n"
-            result += "\n".join(email_list)
-            result += f"\n\nUse the Email ID to get more details or summarize a specific email."
+            # Build formatted result
+            formatted_result = f"Found {len(email_list)} unread email(s):\n\n"
+            formatted_result += "\n".join(email_list)
+            formatted_result += f"\n\nUse the Email ID to get more details or summarize a specific email."
             
-            return result
+            return ToolResult(
+                success=True,
+                data={
+                    "emails": email_data,
+                    "count": len(email_data),
+                    "formatted": formatted_result
+                },
+                metadata={"max_results": input_data.max_results}
+            ).to_string()
             
         except Exception as e:
-            return f"Error retrieving unread emails: {str(e)}"
+            return ToolResult(
+                success=False,
+                error=f"Error retrieving unread emails: {str(e)}"
+            ).to_string()
         
     except Exception as e:
-        return f"Error getting unread emails: {str(e)}"
+        return ToolResult(
+            success=False,
+            error=f"Error getting unread emails: {str(e)}"
+        ).to_string()
 

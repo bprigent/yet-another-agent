@@ -1,38 +1,67 @@
+"""Calculator tool with structured results and validation."""
+
 from langchain_core.tools import tool
 from typing import Literal, Union
+from tools.core.base_tool import ToolResult, log_tool_call
+from tools.schemas import CalculatorInput
 
+
+@log_tool_call("calculator")
 @tool
 def calculator(
-    operation: Literal["add","subtract","multiply","divide"],
+    operation: Literal["add", "subtract", "multiply", "divide"],
     a: Union[int, float],
     b: Union[int, float],
-) -> Union[int, float]:
+) -> str:
     """Define a two-input calculator tool that returns precise answers.
 
-    Arg:
-        operation (str): The operation to perform ('add', 'subtract', 'multiply', 'divide').
-        a (float or int): The first number.
-        b (float or int): The second number.
+    This tool performs basic mathematical operations with validation.
+    Returns structured results with success/error information.
+
+    Args:
+        operation: The operation to perform ('add', 'subtract', 'multiply', 'divide')
+        a: The first number (int or float)
+        b: The second number (int or float)
         
     Returns:
-        result (float or int): the result of the operation
+        String representation of ToolResult with calculation result or error message
 
     Example:
-        Divide: result   = a / b
-        Subtract: result = a - b
+        calculator("add", 5, 3) -> "8"
+        calculator("divide", 10, 0) -> "Error: Division by zero is not allowed"
     """
-    if operation == 'divide' and b == 0:
-        return {"error": "Division by zero is not allowed."}
-
-    # Perform calculation
-    if operation == 'add':
-        result = a + b
-    elif operation == 'subtract':
-        result = a - b
-    elif operation == 'multiply':
-        result = a * b
-    elif operation == 'divide':
-        result = a / b
-    else: 
-        result = "unknown operation"
-    return result
+    try:
+        # Validate input using Pydantic schema
+        input_data = CalculatorInput(operation=operation, a=a, b=b)
+        
+        # Perform calculation
+        if input_data.operation == 'add':
+            result = input_data.a + input_data.b
+        elif input_data.operation == 'subtract':
+            result = input_data.a - input_data.b
+        elif input_data.operation == 'multiply':
+            result = input_data.a * input_data.b
+        elif input_data.operation == 'divide':
+            result = input_data.a / input_data.b
+        else:
+            return ToolResult(
+                success=False,
+                error=f"Unknown operation: {operation}"
+            ).to_string()
+        
+        # Return structured result
+        return ToolResult(
+            success=True,
+            data={"result": result, "operation": operation, "a": a, "b": b},
+            metadata={"operation_type": operation}
+        ).to_string()
+        
+    except ValueError as e:
+        # Validation errors (e.g., division by zero)
+        return ToolResult(success=False, error=str(e)).to_string()
+    except Exception as e:
+        # Unexpected errors
+        return ToolResult(
+            success=False,
+            error=f"Calculation failed: {str(e)}"
+        ).to_string()

@@ -45,3 +45,7 @@ Thumbs.db
 # Memories folder (may contain sensitive data)
 memories/
 
+# Logs
+logs/
+*.log
+
