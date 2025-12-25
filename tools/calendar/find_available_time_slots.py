@@ -1,8 +1,8 @@
 """Tool to find available time slots in calendar."""
 
 from datetime import datetime, timedelta
-from tools.calendar_auth import get_calendar_service
-from tools.calendar_utils import (
+from .calendar_auth import get_calendar_service
+from .calendar_utils import (
     parse_datetime_input,
     format_datetime_for_api,
     get_default_calendar_id,

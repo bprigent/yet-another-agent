@@ -2,6 +2,7 @@
 
 from tavily import TavilyClient
 import os
+from langchain_core.tools import tool
 
 # Initialize Tavily client
 _tavily_client = None
@@ -18,6 +19,7 @@ def get_tavily_client():
     return _tavily_client
 
 
+@tool
 def internet_search(query: str) -> str:
     """Search the web for current information using Tavily.
     

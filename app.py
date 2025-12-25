@@ -8,24 +8,33 @@ from deepagents import create_deep_agent
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.messages import HumanMessage, AIMessage, ToolMessage, SystemMessage
 from tools.internet_search import internet_search
-from tools.get_current_time import get_current_time
-from tools.get_user_ip import get_user_ip
-from tools.get_location_from_ip import get_location_from_ip
-from tools.create_update_calendar_event import create_update_calendar_event
-from tools.get_calendar_schedule import (
+from tools.core.get_current_time import get_current_time
+from tools.core.get_user_ip import get_user_ip
+from tools.core.get_location_from_ip import get_location_from_ip
+from tools.calendar.create_update_calendar_event import create_update_calendar_event
+from tools.calendar.get_calendar_schedule import (
     get_calendar_schedule,
     get_event_id_from_name,
     delete_calendar_event
 )
-from tools.find_available_time_slots import find_available_time_slots
-from tools.summarize_calendar import summarize_calendar
+from tools.calendar.find_available_time_slots import find_available_time_slots
+from tools.calendar.summarize_calendar import summarize_calendar
 from tools.memory_tools import (
     write_memory_file,
     read_memory_file,
     list_memory_files,
     edit_memory_file,
 )
-from tools.calculator import calculator
+from tools.activity_log import log_activity, read_activity
+from tools.core.calculator import calculator
+from tools.mail import (
+    get_unread_emails,
+    summarize_email,
+    create_draft,
+    send_draft,
+    list_drafts,
+    mark_as_read,
+)
 
 # Load environment variables
 load_dotenv()
@@ -98,7 +107,15 @@ def get_agent():
                 read_memory_file,
                 list_memory_files,
                 edit_memory_file,
+                log_activity,
+                read_activity,
                 calculator,
+                get_unread_emails,
+                summarize_email,
+                create_draft,
+                send_draft,
+                list_drafts,
+                mark_as_read,
             ]
         )
     return _agent

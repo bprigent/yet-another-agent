@@ -2,8 +2,8 @@
 
 from datetime import datetime, timedelta
 from collections import defaultdict
-from tools.calendar_auth import get_calendar_service
-from tools.calendar_utils import (
+from .calendar_auth import get_calendar_service
+from .calendar_utils import (
     parse_time_range,
     format_datetime_for_api,
     get_default_calendar_id
@@ -75,7 +75,7 @@ def summarize_calendar(
             
             if 'dateTime' in start:
                 try:
-                    from tools.calendar_utils import parse_datetime_input
+                    from .calendar_utils import parse_datetime_input
                     event_start_dt = parse_datetime_input(start_time_str)
                     event_end_dt = parse_datetime_input(end_time_str)
                     duration = event_end_dt - event_start_dt
