@@ -2,9 +2,14 @@
 
 from datetime import datetime
 import pytz
+from tools.core.base_tool import ToolResult, log_tool_call, ensure_string_result
+from langchain_core.tools import tool
 
 
-def get_current_time(timezone: str = "UTC") -> str:
+@tool
+@ensure_string_result
+@log_tool_call("get_current_time")
+def get_current_time(timezone: str = "UTC") -> ToolResult:
     """Get the current date and time in a specified timezone.
     
     Use this tool when you need to know the current time, date for a specific task. 
@@ -37,12 +42,18 @@ def get_current_time(timezone: str = "UTC") -> str:
         formatted_time = now.strftime("%Y-%m-%d %H:%M:%S %Z")
         day_name = now.strftime("%A")
         
-        return f"Current time in {timezone}: {formatted_time} ({day_name})"
+        return ToolResult(
+            success=True,
+            data=f"Current time in {timezone}: {formatted_time} ({day_name})"
+        )
     
     except Exception as e:
         # Fallback to UTC if anything goes wrong
         now = datetime.now(pytz.UTC)
         formatted_time = now.strftime("%Y-%m-%d %H:%M:%S %Z")
         day_name = now.strftime("%A")
-        return f"Current time in UTC: {formatted_time} ({day_name})\n(Note: Error occurred with requested timezone: {str(e)})"
+        return ToolResult(
+            success=False,
+            error=f"Current time in UTC: {formatted_time} ({day_name})\n(Note: Error occurred with requested timezone: {str(e)})"
+        )
 

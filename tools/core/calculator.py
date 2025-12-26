@@ -2,17 +2,18 @@
 
 from langchain_core.tools import tool
 from typing import Literal, Union
-from tools.core.base_tool import ToolResult, log_tool_call
+from tools.core.base_tool import ToolResult, log_tool_call, ensure_string_result
 from tools.schemas import CalculatorInput
 
 
-@log_tool_call("calculator")
 @tool
+@ensure_string_result
+@log_tool_call("calculator")
 def calculator(
     operation: Literal["add", "subtract", "multiply", "divide"],
     a: Union[int, float],
     b: Union[int, float],
-) -> str:
+) -> ToolResult:
     """Define a two-input calculator tool that returns precise answers.
 
     This tool performs basic mathematical operations with validation.
@@ -47,21 +48,21 @@ def calculator(
             return ToolResult(
                 success=False,
                 error=f"Unknown operation: {operation}"
-            ).to_string()
+            )
         
-        # Return structured result
+        # Return structured result (ensure_string_result decorator converts to str)
         return ToolResult(
             success=True,
             data={"result": result, "operation": operation, "a": a, "b": b},
             metadata={"operation_type": operation}
-        ).to_string()
+        )
         
     except ValueError as e:
         # Validation errors (e.g., division by zero)
-        return ToolResult(success=False, error=str(e)).to_string()
+        return ToolResult(success=False, error=str(e))
     except Exception as e:
         # Unexpected errors
         return ToolResult(
             success=False,
             error=f"Calculation failed: {str(e)}"
-        ).to_string()
+        )

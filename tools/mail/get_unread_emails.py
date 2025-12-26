@@ -5,18 +5,14 @@ from langchain_core.tools import tool
 from .mail_auth import get_gmail_service
 from email.utils import parseaddr
 import base64
-from tools.core.base_tool import ToolResult, log_tool_call
-from pydantic import BaseModel, Field, field_validator
+from tools.core.base_tool import ToolResult, log_tool_call, ensure_string_result
+from tools.schemas import UnreadEmailsInput
 
 
-class UnreadEmailsInput(BaseModel):
-    """Input schema for unread emails query."""
-    max_results: int = Field(default=10, ge=1, le=50, description="Maximum number of emails to return")
-
-
-@log_tool_call("get_unread_emails")
 @tool
-def get_unread_emails(max_results: int = 10) -> str:
+@ensure_string_result
+@log_tool_call("get_unread_emails")
+def get_unread_emails(max_results: int = 10) -> ToolResult:
     """Get unread emails with their ID, subject line, and sender details.
     
     Use this tool when the user asks about unread emails, new messages, or wants to check their inbox.
@@ -39,7 +35,7 @@ def get_unread_emails(max_results: int = 10) -> str:
             return ToolResult(
                 success=False,
                 error=f"Validation error: {str(e)}"
-            ).to_string()
+            )
         
         # Get Gmail service - wrap in try/except to catch auth errors early
         try:
@@ -48,17 +44,17 @@ def get_unread_emails(max_results: int = 10) -> str:
             return ToolResult(
                 success=False,
                 error=f"Gmail authentication error: {str(e)}. Please ensure credentials.json exists and gmail_token.json is set up."
-            ).to_string()
+            )
         except RuntimeError as e:
             return ToolResult(
                 success=False,
                 error=f"Gmail authentication error: {str(e)}"
-            ).to_string()
+            )
         except Exception as e:
             return ToolResult(
                 success=False,
                 error=f"Gmail service initialization error: {str(e)}"
-            ).to_string()
+            )
         
         # Query for unread messages in INBOX (following official Gmail API pattern)
         query = 'is:unread'
@@ -79,7 +75,7 @@ def get_unread_emails(max_results: int = 10) -> str:
                     success=True,
                     data={"emails": [], "count": 0},
                     metadata={"max_results": input_data.max_results}
-                ).to_string()
+                )
             
             # Get details for each message
             email_list = []
@@ -141,17 +137,17 @@ def get_unread_emails(max_results: int = 10) -> str:
                     "formatted": formatted_result
                 },
                 metadata={"max_results": input_data.max_results}
-            ).to_string()
+            )
             
         except Exception as e:
             return ToolResult(
                 success=False,
                 error=f"Error retrieving unread emails: {str(e)}"
-            ).to_string()
+            )
         
     except Exception as e:
         return ToolResult(
             success=False,
             error=f"Error getting unread emails: {str(e)}"
-        ).to_string()
+        )
 

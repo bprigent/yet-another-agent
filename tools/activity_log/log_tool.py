@@ -5,40 +5,29 @@ from datetime import datetime
 import pytz
 from dateutil import parser as date_parser
 from langchain_core.tools import tool
-from tools.core.base_tool import ToolResult, log_tool_call
-from pydantic import BaseModel, Field
+from tools.core.base_tool import ToolResult, log_tool_call, ensure_string_result
+from tools.schemas import ActivityLogInput
 
 from .config import ACTIVITY_LOG_FILE
 from .utils import ensure_log_file_exists
 
 
-class ActivityLogInput(BaseModel):
-    """Input schema for activity logging."""
-    activity_message: str = Field(..., min_length=1, description="Description of the activity")
-    timestamp: str | None = Field(default=None, description="Optional ISO format timestamp")
-    related_people: str | None = Field(default=None, description="Comma-separated list of people")
-    related_places: str | None = Field(default=None, description="Comma-separated list of places")
-    related_topics: str | None = Field(default=None, description="Comma-separated list of topics")
-
-
-@log_tool_call("log_activity")
 @tool
+@ensure_string_result
+@log_tool_call("log_activity")
 def log_activity(
     activity_message: str, 
     timestamp: str | None = None,
     related_people: str | None = None,
     related_places: str | None = None,
     related_topics: str | None = None
-) -> str:
+) -> ToolResult:
     """
-    Log a major activity with a coherent short log message and the current date and time.
-    
-    This tool automatically records activities in a CSV file stored in the memories directory.
-    Use this tool to log significant activities, actions, or events that should be tracked.
+    Use this tool to log significant activities, actions, or events that should be tracked. It automatically records activities in a CSV file stored in the memories directory.
     
     Args:
         activity_message: A coherent, short description of the activity (e.g., "Scheduled meeting with John for tomorrow at 2 PM")
-        timestamp: Optional ISO format timestamp (YYYY-MM-DD HH:MM:SS). If not provided, uses current time.
+        timestamp: Optional ISO format timestamp (YYYY-MM-DD HH:MM:SS). If not provided, the system will use current time.
         related_people: Optional comma-separated list of people related to this activity (e.g., "John Doe, Jane Smith")
         related_places: Optional comma-separated list of places related to this activity (e.g., "New York, Office")
         related_topics: Optional comma-separated list of topics related to this activity (e.g., "meeting, project planning")
@@ -60,7 +49,7 @@ def log_activity(
             return ToolResult(
                 success=False,
                 error=f"Validation error: {str(e)}"
-            ).to_string()
+            )
         
         ensure_log_file_exists()
         
@@ -120,11 +109,11 @@ def log_activity(
                 "formatted": formatted_msg
             },
             metadata={"log_file": str(ACTIVITY_LOG_FILE)}
-        ).to_string()
+        )
     
     except Exception as e:
         return ToolResult(
             success=False,
             error=f"Error logging activity: {str(e)}"
-        ).to_string()
+        )
 

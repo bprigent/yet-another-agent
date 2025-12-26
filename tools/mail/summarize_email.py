@@ -6,6 +6,7 @@ from .mail_auth import get_gmail_service
 from email.utils import parseaddr
 import base64
 import re
+from tools.core.base_tool import ToolResult, log_tool_call, ensure_string_result
 
 
 def _decode_message_body(message: dict) -> str:
@@ -64,7 +65,9 @@ def _decode_message_body(message: dict) -> str:
 
 
 @tool
-def summarize_email(email_id: str, include_body: bool = True) -> str:
+@ensure_string_result
+@log_tool_call("summarize_email")
+def summarize_email(email_id: str, include_body: bool = True) -> ToolResult:
     """Summarize an email by its ID.
     
     Use this tool when the user wants to read or understand the content of a specific email.
@@ -84,17 +87,29 @@ def summarize_email(email_id: str, include_body: bool = True) -> str:
     """
     try:
         if not email_id or not email_id.strip():
-            return "Error: Email ID is required."
+            return ToolResult(
+                success=False,
+                error="Error: Email ID is required."
+            )
         
         # Get Gmail service - wrap in try/except to catch auth errors early
         try:
             service = get_gmail_service()
         except FileNotFoundError as e:
-            return f"Gmail authentication error: {str(e)}. Please ensure credentials.json exists and gmail_token.json is set up."
+            return ToolResult(
+                success=False,
+                error=f"Gmail authentication error: {str(e)}. Please ensure credentials.json exists and gmail_token.json is set up."
+            )
         except RuntimeError as e:
-            return f"Gmail authentication error: {str(e)}"
+            return ToolResult(
+                success=False,
+                error=f"Gmail authentication error: {str(e)}"
+            )
         except Exception as e:
-            return f"Gmail service initialization error: {str(e)}"
+            return ToolResult(
+                success=False,
+                error=f"Gmail service initialization error: {str(e)}"
+            )
         
         # Get full message
         try:
@@ -104,7 +119,10 @@ def summarize_email(email_id: str, include_body: bool = True) -> str:
                 format='full'
             ).execute()
         except Exception as e:
-            return f"Error retrieving email with ID '{email_id}': {str(e)}. The email may not exist or you may not have permission to access it."
+            return ToolResult(
+                success=False,
+                error=f"Error retrieving email with ID '{email_id}': {str(e)}. The email may not exist or you may not have permission to access it."
+            )
         
         # Extract headers
         headers = message['payload'].get('headers', [])
@@ -143,8 +161,14 @@ def summarize_email(email_id: str, include_body: bool = True) -> str:
                 summary += "\n" + "=" * 50 + "\n"
                 summary += "Email Body: (No text content found - may be HTML-only or empty)"
         
-        return summary
+        return ToolResult(
+            success=True,
+            data=summary
+        )
         
     except Exception as e:
-        return f"Error summarizing email: {str(e)}"
+        return ToolResult(
+            success=False,
+            error=f"Error summarizing email: {str(e)}"
+        )
 

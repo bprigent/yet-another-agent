@@ -4,28 +4,22 @@ import csv
 import pytz
 from dateutil import parser as date_parser
 from langchain_core.tools import tool
-from tools.core.base_tool import ToolResult, log_tool_call
-from pydantic import BaseModel, Field
+from tools.core.base_tool import ToolResult, log_tool_call, ensure_string_result
+from tools.schemas import ReadActivityInput
 
 from .config import ACTIVITY_LOG_FILE
 from .utils import ensure_log_file_exists, parse_date_input, format_activity_output
 
-
-class ReadActivityInput(BaseModel):
-    """Input schema for reading activities."""
-    start_date: str = Field(..., description="Start date for the query")
-    end_date: str = Field(..., description="End date for the query")
-
-
-@log_tool_call("read_activity")
 @tool
-def read_activity(start_date: str, end_date: str) -> str:
+@ensure_string_result
+@log_tool_call("read_activity")
+def read_activity(start_date: str, end_date: str) -> ToolResult:
     """
-    Read activities from the activity log between two dates (inclusive).
+    Use this tool to learn about activities you did for Benjamin between two dates.
     
     Args:
-        start_date: Start date for the query (supports "today", "tomorrow", ISO format "2024-01-15", or natural language)
-        end_date: End date for the query (supports "today", "tomorrow", ISO format "2024-01-15", or natural language)
+        start_date: Inclusive. Start date for the query (supports ISO format only)
+        end_date: Inclusive. End date for the query (supports ISO format only)
     
     Returns:
         Formatted string listing all activities in the date range, or an error message
@@ -38,7 +32,7 @@ def read_activity(start_date: str, end_date: str) -> str:
             return ToolResult(
                 success=False,
                 error=f"Validation error: {str(e)}"
-            ).to_string()
+            )
         
         # Ensure log file exists and is migrated
         ensure_log_file_exists()
@@ -46,7 +40,7 @@ def read_activity(start_date: str, end_date: str) -> str:
             return ToolResult(
                 success=False,
                 error="No activity log found. The log file does not exist yet."
-            ).to_string()
+            )
         
         # Parse dates
         try:
@@ -59,7 +53,7 @@ def read_activity(start_date: str, end_date: str) -> str:
             return ToolResult(
                 success=False,
                 error=f"Error parsing dates: {str(e)}"
-            ).to_string()
+            )
         
         # Read activities from CSV
         activities = []
@@ -94,7 +88,7 @@ def read_activity(start_date: str, end_date: str) -> str:
                     "start_date": input_data.start_date,
                     "end_date": input_data.end_date
                 }
-            ).to_string()
+            )
         
         formatted_output = format_activity_output(activities, f"Activities from {input_data.start_date} to {input_data.end_date}:")
         
@@ -110,11 +104,11 @@ def read_activity(start_date: str, end_date: str) -> str:
                 "end_date": input_data.end_date,
                 "log_file": str(ACTIVITY_LOG_FILE)
             }
-        ).to_string()
+        )
     
     except Exception as e:
         return ToolResult(
             success=False,
             error=f"Error reading activities: {str(e)}"
-        ).to_string()
+        )
 

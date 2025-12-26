@@ -52,7 +52,7 @@ def parse_date_input(date_str: str) -> datetime:
     """Parse user-friendly date strings into datetime objects.
     
     Supports various formats:
-    - Relative: "today", "tomorrow"
+    - Relative: "today", "tomorrow", "yesterday"
     - ISO format: "2024-01-15"
     - Natural language: "January 15, 2024"
     
@@ -70,6 +70,8 @@ def parse_date_input(date_str: str) -> datetime:
         return now.replace(hour=0, minute=0, second=0, microsecond=0)
     elif date_str == "tomorrow":
         return (now + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
+    elif date_str == "yesterday":
+        return (now - timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
     else:
         # Try dateutil parser for various formats
         try:

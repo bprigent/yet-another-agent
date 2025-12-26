@@ -8,8 +8,12 @@ from .calendar_utils import (
     get_default_calendar_id,
     parse_working_hours
 )
+from langchain_core.tools import tool
+from tools.core.base_tool import log_tool_call, ToolResult, ensure_string_result
 
-
+@tool
+@ensure_string_result
+@log_tool_call("find_available_time_slots")
 def find_available_time_slots(
     duration_minutes: int,
     earliest_start: str,
@@ -17,8 +21,9 @@ def find_available_time_slots(
     working_hours: str | None = None,
     exclude_all_day_events: bool = True,
     calendar_id: str | None = None
-) -> str:
-    """Find available time slots of specified duration in calendar.
+) -> ToolResult:
+    """
+    Use this tool to find available time slots in Benjamin's calendar.
     
     Analyzes the calendar schedule and returns free time slots that match the constraints.
     Useful for finding when the user can schedule meetings, workouts, or other activities.
@@ -37,7 +42,10 @@ def find_available_time_slots(
     try:
         # Validate duration
         if duration_minutes <= 0:
-            return "Error: Duration must be positive (greater than 0 minutes)"
+            return ToolResult(
+                success=False,
+                error="Error: Duration must be positive (greater than 0 minutes)"
+            )
         
         # Parse datetime inputs
         earliest_dt = parse_datetime_input(earliest_start)
@@ -45,12 +53,18 @@ def find_available_time_slots(
         
         # Validate time range
         if earliest_dt >= latest_dt:
-            return f"Error: Earliest start ({earliest_start}) must be before latest end ({latest_end})"
+            return ToolResult(
+                success=False,
+                error=f"Error: Earliest start ({earliest_start}) must be before latest end ({latest_end})"
+            )
         
         # Check if duration fits in range
         duration_td = timedelta(minutes=duration_minutes)
         if (latest_dt - earliest_dt) < duration_td:
-            return f"Error: Duration ({duration_minutes} minutes) is longer than the available time range"
+            return ToolResult(
+                success=False,
+                error=f"Error: Duration ({duration_minutes} minutes) is longer than the available time range"
+            )
         
         # Parse working hours if provided
         working_hours_tuple = None
@@ -58,7 +72,10 @@ def find_available_time_slots(
             try:
                 working_hours_tuple = parse_working_hours(working_hours)
             except ValueError as e:
-                return f"Error: Invalid working hours format - {str(e)}"
+                return ToolResult(
+                    success=False,
+                    error=f"Error: Invalid working hours format - {str(e)}"
+                )
         
         # Get calendar service
         service = get_calendar_service()
@@ -164,7 +181,10 @@ def find_available_time_slots(
             result += f"\n  • Expand the time range"
             if working_hours:
                 result += "\n  • Remove working hours constraint"
-            return result
+            return ToolResult(
+                success=True,
+                data=result
+            )
         
         result = f"Found {len(valid_slots)} available {duration_minutes}-minute slot(s):\n\n"
         for i, (slot_start, slot_end) in enumerate(valid_slots, 1):
@@ -173,12 +193,24 @@ def find_available_time_slots(
         if working_hours:
             result += f"\n(Filtered by working hours: {working_hours})"
         
-        return result
+        return ToolResult(
+            success=True,
+            data=result
+        )
         
     except ValueError as e:
-        return f"Error: Invalid input - {str(e)}"
+        return ToolResult(
+            success=False,
+            error=f"Error: Invalid input - {str(e)}"
+        )
     except FileNotFoundError as e:
-        return f"Error: {str(e)}"
+        return ToolResult(
+            success=False,
+            error=f"Error: {str(e)}"
+        )
     except Exception as e:
-        return f"Error finding available time slots: {str(e)}"
+        return ToolResult(
+            success=False,
+            error=f"Error finding available time slots: {str(e)}"
+        )
 

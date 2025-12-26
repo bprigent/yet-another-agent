@@ -7,14 +7,15 @@ from .calendar_utils import (
     get_default_calendar_id,
     validate_time_range
 )
-from tools.core.base_tool import ToolResult, log_tool_call
+from tools.core.base_tool import ToolResult, log_tool_call, ensure_string_result
 from tools.schemas import CalendarEventInput
 from datetime import datetime
 from langchain_core.tools import tool
 
 
-@log_tool_call("create_update_calendar_event")
 @tool
+@ensure_string_result
+@log_tool_call("create_update_calendar_event")
 def create_update_calendar_event(
     title: str,
     start_time: str,
@@ -24,24 +25,25 @@ def create_update_calendar_event(
     calendar_id: str | None = None,
     event_id: str | None = None,
     attendees: list[str] | None = None
-) -> str:
-    """Create a new calendar event or update an existing one.
+) -> ToolResult:
+    """
+    Use this tool to create a new calendar event or update an existing one.
     
-    Use this tool when the user wants to schedule a meeting, appointment, or event.
-    Can create new events or update existing ones by providing the event_id.
+    This tool is great when the user wants to schedule a meeting, appointment, or event.
+    This tool can create a new event or update an existing one by providing the event_id.
     
     Args:
-        title: Event title/summary
+        title: Event title/summary (Create a coherent and concise title on your own if Benjamin doesn't provide one, keep it short)
         start_time: Start time (supports formats like "tomorrow 2pm", "2024-01-15T14:30:00", etc.)
         end_time: End time (same format as start_time)
-        location: Optional location/venue for the event
-        description: Optional description or notes for the event
+        location: Optional location/venue for the event (If you can infer the location from the context of this conversation with high confidence, do so.)
+        description: Optional description or notes for the event (A place to add further details so that the title can stay short.)
         calendar_id: Optional calendar ID (defaults to 'primary')
         event_id: Optional event ID for updating existing events
-        attendees: Optional list of email addresses to invite to the event
+        attendees: Optional list of email addresses to invite to the event (if Benjamin doesn't provide one)
         
     Returns:
-        Formatted string with event details including event ID and link
+        Formatted string with event details including event ID and link if it was created successfully
     """
     try:
         # Parse datetime inputs
@@ -53,7 +55,7 @@ def create_update_calendar_event(
             return ToolResult(
                 success=False,
                 error=f"Start time ({start_time}) must be before end time ({end_time})"
-            ).to_string()
+            )
         
         # Get calendar service
         service = get_calendar_service()
@@ -103,11 +105,11 @@ def create_update_calendar_event(
                     return ToolResult(
                         success=False,
                         error=f"Event ID '{event_id}' not found. It may have been deleted or the ID is incorrect."
-                    ).to_string()
+                    )
                 return ToolResult(
                     success=False,
                     error=f"Error updating event: {error_msg}"
-                ).to_string()
+                )
         else:
             # Create new event
             try:
@@ -121,7 +123,7 @@ def create_update_calendar_event(
                 return ToolResult(
                     success=False,
                     error=f"Error creating event: {str(e)}"
-                ).to_string()
+                )
         
         # Format response
         event_id_result = event.get('id', 'N/A')
@@ -159,27 +161,27 @@ def create_update_calendar_event(
                 "formatted": formatted_msg
             },
             metadata={"calendar_id": cal_id, "event_id_provided": event_id is not None}
-        ).to_string()
+        )
         
     except ValueError as e:
         return ToolResult(
             success=False,
             error=f"Invalid time format: {str(e)}"
-        ).to_string()
+        )
     except FileNotFoundError as e:
         return ToolResult(
             success=False,
             error=f"Calendar authentication error: {str(e)}"
-        ).to_string()
+        )
     except Exception as e:
         error_msg = str(e)
         if event_id and ('404' in error_msg or 'not found' in error_msg.lower()):
             return ToolResult(
                 success=False,
                 error=f"Event ID '{event_id}' not found. It may have been deleted or the ID is incorrect."
-            ).to_string()
+            )
         return ToolResult(
             success=False,
             error=f"Error creating/updating calendar event: {error_msg}"
-        ).to_string()
+        )
 

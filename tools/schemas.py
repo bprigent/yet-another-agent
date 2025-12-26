@@ -129,3 +129,44 @@ class MemoryFileInput(BaseModel):
             clean_path = clean_path.replace("memories/", "", 1)
         return clean_path
 
+
+# Mail schemas
+class UnreadEmailsInput(BaseModel):
+    """Input schema for unread emails query."""
+    max_results: int = Field(default=10, ge=1, le=50, description="Maximum number of emails to return")
+
+
+class EmailsByDateRangeInput(BaseModel):
+    """Input schema for emails by date range query."""
+    start_date: str = Field(..., description="Start date (supports 'today', ISO format, or natural language)")
+    end_date: str = Field(..., description="End date (supports 'today', ISO format, or natural language)")
+    max_results: int = Field(default=50, ge=1, le=500, description="Maximum number of emails to return")
+
+
+class SentEmailsByDateRangeInput(BaseModel):
+    """Input schema for sent emails by date range query."""
+    start_date: str = Field(..., description="Start date (supports 'today', ISO format, or natural language)")
+    end_date: str = Field(..., description="End date (supports 'today', ISO format, or natural language)")
+    max_results: int = Field(default=50, ge=1, le=500, description="Maximum number of emails to return")
+
+
+class DraftIdInput(BaseModel):
+    """Input schema for draft ID validation."""
+    draft_id: str = Field(..., min_length=1, description="Gmail draft ID")
+
+
+# Activity log schemas
+class ActivityLogInput(BaseModel):
+    """Input schema for activity logging."""
+    activity_message: str = Field(..., min_length=1, description="Description of the activity")
+    timestamp: Optional[str] = Field(default=None, description="ISO format timestamp")
+    related_people: Optional[str] = Field(default=None, description="Comma-separated list of people")
+    related_places: Optional[str] = Field(default=None, description="Comma-separated list of places")
+    related_topics: Optional[str] = Field(default=None, description="Comma-separated list of topics")
+
+
+class ReadActivityInput(BaseModel):
+    """Input schema for reading activities."""
+    start_date: str = Field(..., description="Start date for the query")
+    end_date: str = Field(..., description="End date for the query")
+

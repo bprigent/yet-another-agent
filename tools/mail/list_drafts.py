@@ -3,10 +3,13 @@
 from langchain_core.tools import tool
 from .mail_auth import get_gmail_service
 from email.utils import parseaddr
+from tools.core.base_tool import ToolResult, log_tool_call, ensure_string_result
 
 
 @tool
-def list_drafts(max_results: int = 10) -> str:
+@ensure_string_result
+@log_tool_call("list_drafts")
+def list_drafts(max_results: int = 10) -> ToolResult:
     """List draft emails with their ID, subject line, and recipient details.
     
     Use this tool when the user wants to see their draft emails or review drafts before sending.
@@ -32,11 +35,20 @@ def list_drafts(max_results: int = 10) -> str:
         try:
             service = get_gmail_service()
         except FileNotFoundError as e:
-            return f"Gmail authentication error: {str(e)}. Please ensure credentials.json exists and gmail_token.json is set up."
+            return ToolResult(
+                success=False,
+                error=f"Gmail authentication error: {str(e)}. Please ensure credentials.json exists and gmail_token.json is set up."
+            )
         except RuntimeError as e:
-            return f"Gmail authentication error: {str(e)}"
+            return ToolResult(
+                success=False,
+                error=f"Gmail authentication error: {str(e)}"
+            )
         except Exception as e:
-            return f"Gmail service initialization error: {str(e)}"
+            return ToolResult(
+                success=False,
+                error=f"Gmail service initialization error: {str(e)}"
+            )
         
         # List drafts
         try:
@@ -48,7 +60,10 @@ def list_drafts(max_results: int = 10) -> str:
             drafts = results.get('drafts', [])
             
             if not drafts:
-                return "No draft emails found."
+                return ToolResult(
+                    success=False,
+                    error="No draft emails found."
+                )
             
             # Get details for each draft
             draft_list = []
@@ -96,11 +111,20 @@ def list_drafts(max_results: int = 10) -> str:
             result += "\n".join(draft_list)
             result += f"\n\nUse the Draft ID with send_draft tool to send a draft."
             
-            return result
+            return ToolResult(
+                success=True,
+                data=result
+            )
             
         except Exception as e:
-            return f"Error retrieving drafts: {str(e)}"
+            return ToolResult(
+                success=False,
+                error=f"Error retrieving drafts: {str(e)}"
+            )
         
     except Exception as e:
-        return f"Error listing drafts: {str(e)}"
+        return ToolResult(
+            success=False,
+            error=f"Error listing drafts: {str(e)}"
+        )
 

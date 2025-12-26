@@ -3,7 +3,7 @@
 from tavily import TavilyClient
 import os
 from langchain_core.tools import tool
-from tools.core.base_tool import ToolResult, log_tool_call
+from tools.core.base_tool import ToolResult, log_tool_call, ensure_string_result
 from pydantic import BaseModel, Field
 
 # Initialize Tavily client
@@ -21,9 +21,10 @@ def get_tavily_client():
     return _tavily_client
 
 
-@log_tool_call("internet_search")
 @tool
-def internet_search(query: str) -> str:
+@ensure_string_result
+@log_tool_call("internet_search")
+def internet_search(query: str) -> ToolResult:
     """Search the web for current information using Tavily.
     
     Use this tool to find recent news, facts, or any information that requires 
@@ -41,7 +42,7 @@ def internet_search(query: str) -> str:
             return ToolResult(
                 success=False,
                 error="Search query cannot be empty"
-            ).to_string()
+            )
         
         client = get_tavily_client()
         response = client.search(
@@ -66,7 +67,7 @@ def internet_search(query: str) -> str:
                 success=True,
                 data={"results": [], "query": query},
                 metadata={"result_count": 0}
-            ).to_string()
+            )
         
         # Format results for display
         formatted_results = []
@@ -83,15 +84,15 @@ def internet_search(query: str) -> str:
                 "query": query
             },
             metadata={"result_count": len(results)}
-        ).to_string()
+        )
     except ValueError as e:
         return ToolResult(
             success=False,
             error=f"Configuration error: {str(e)}"
-        ).to_string()
+        )
     except Exception as e:
         return ToolResult(
             success=False,
             error=f"Error performing search: {str(e)}"
-        ).to_string()
+        )
 

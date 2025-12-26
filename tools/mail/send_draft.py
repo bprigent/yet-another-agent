@@ -2,18 +2,14 @@
 
 from langchain_core.tools import tool
 from .mail_auth import get_gmail_service
-from tools.core.base_tool import ToolResult, log_tool_call
-from pydantic import BaseModel, Field
+from tools.core.base_tool import ToolResult, log_tool_call, ensure_string_result
+from tools.schemas import DraftIdInput
 
 
-class DraftIdInput(BaseModel):
-    """Input schema for draft ID validation."""
-    draft_id: str = Field(..., min_length=1, description="Gmail draft ID")
-
-
-@log_tool_call("send_draft")
 @tool
-def send_draft(draft_id: str) -> str:
+@ensure_string_result
+@log_tool_call("send_draft")
+def send_draft(draft_id: str) -> ToolResult:
     """Send a draft email by its draft ID.
     
     Use this tool when the user wants to send a draft email that was previously created.
@@ -33,7 +29,7 @@ def send_draft(draft_id: str) -> str:
             return ToolResult(
                 success=False,
                 error=f"Validation error: {str(e)}"
-            ).to_string()
+            )
         
         # Get Gmail service - wrap in try/except to catch auth errors early
         try:
@@ -42,17 +38,17 @@ def send_draft(draft_id: str) -> str:
             return ToolResult(
                 success=False,
                 error=f"Gmail authentication error: {str(e)}. Please ensure credentials.json exists and gmail_token.json is set up."
-            ).to_string()
+            )
         except RuntimeError as e:
             return ToolResult(
                 success=False,
                 error=f"Gmail authentication error: {str(e)}"
-            ).to_string()
+            )
         except Exception as e:
             return ToolResult(
                 success=False,
                 error=f"Gmail service initialization error: {str(e)}"
-            ).to_string()
+            )
         
         # Send the draft
         try:
@@ -102,7 +98,7 @@ def send_draft(draft_id: str) -> str:
                         "bcc": bcc_header,
                         "formatted": formatted_msg
                     }
-                ).to_string()
+                )
                 
             except Exception:
                 # If we can't get message details, still report success
@@ -119,7 +115,7 @@ def send_draft(draft_id: str) -> str:
                         "thread_id": thread_id,
                         "formatted": formatted_msg
                     }
-                ).to_string()
+                )
             
         except Exception as e:
             error_msg = str(e)
@@ -128,21 +124,21 @@ def send_draft(draft_id: str) -> str:
                 return ToolResult(
                     success=False,
                     error=f"Draft with ID '{input_data.draft_id}' not found. It may have been deleted or the ID is incorrect."
-                ).to_string()
+                )
             elif 'quota' in error_msg.lower() or 'limit' in error_msg.lower():
                 return ToolResult(
                     success=False,
                     error=f"Gmail sending quota exceeded. Please try again later. Details: {error_msg}"
-                ).to_string()
+                )
             else:
                 return ToolResult(
                     success=False,
                     error=f"Error sending draft: {error_msg}"
-                ).to_string()
+                )
         
     except Exception as e:
         return ToolResult(
             success=False,
             error=f"Error sending draft: {str(e)}"
-        ).to_string()
+        )
 

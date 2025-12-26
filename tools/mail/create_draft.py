@@ -5,12 +5,13 @@ from email.mime.multipart import MIMEMultipart
 from langchain_core.tools import tool
 import base64
 from .mail_auth import get_gmail_service
-from tools.core.base_tool import ToolResult, log_tool_call
+from tools.core.base_tool import ToolResult, log_tool_call, ensure_string_result
 from tools.schemas import EmailDraftInput
 
 
-@log_tool_call("create_draft")
 @tool
+@ensure_string_result
+@log_tool_call("create_draft")
 def create_draft(
     to: str,
     subject: str,
@@ -18,7 +19,7 @@ def create_draft(
     cc: str | None = None,
     bcc: str | None = None,
     is_html: bool = False
-) -> str:
+) -> ToolResult:
     """Create a draft email via Gmail.
     
     Use this tool when the user wants to compose an email. This creates a draft that can be reviewed
@@ -55,7 +56,7 @@ def create_draft(
             return ToolResult(
                 success=False,
                 error=f"Validation error: {str(e)}"
-            ).to_string()
+            )
         
         # Get Gmail service - wrap in try/except to catch auth errors early
         try:
@@ -64,17 +65,17 @@ def create_draft(
             return ToolResult(
                 success=False,
                 error=f"Gmail authentication error: {str(e)}. Please ensure credentials.json exists and gmail_token.json is set up."
-            ).to_string()
+            )
         except RuntimeError as e:
             return ToolResult(
                 success=False,
                 error=f"Gmail authentication error: {str(e)}"
-            ).to_string()
+            )
         except Exception as e:
             return ToolResult(
                 success=False,
                 error=f"Gmail service initialization error: {str(e)}"
-            ).to_string()
+            )
         
         # Create MIME message following official Gmail API pattern
         if email_input.is_html:
@@ -137,7 +138,7 @@ def create_draft(
                     "formatted": formatted_msg
                 },
                 metadata={"is_html": email_input.is_html}
-            ).to_string()
+            )
             
         except Exception as e:
             error_msg = str(e)
@@ -146,21 +147,21 @@ def create_draft(
                 return ToolResult(
                     success=False,
                     error=f"Invalid email address format. Please check the recipient email address(es). Details: {error_msg}"
-                ).to_string()
+                )
             elif 'quota' in error_msg.lower() or 'limit' in error_msg.lower():
                 return ToolResult(
                     success=False,
                     error=f"Gmail quota exceeded. Please try again later. Details: {error_msg}"
-                ).to_string()
+                )
             else:
                 return ToolResult(
                     success=False,
                     error=f"Error creating draft: {error_msg}"
-                ).to_string()
+                )
         
     except Exception as e:
         return ToolResult(
             success=False,
             error=f"Error preparing draft: {str(e)}"
-        ).to_string()
+        )
 

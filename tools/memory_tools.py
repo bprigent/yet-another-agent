@@ -4,7 +4,7 @@ import os
 from pathlib import Path
 from typing import Optional
 from langchain_core.tools import tool
-from tools.core.base_tool import ToolResult, log_tool_call
+from tools.core.base_tool import ToolResult, log_tool_call, ensure_string_result
 from tools.schemas import MemoryFileInput
 
 
@@ -46,9 +46,10 @@ def sanitize_path(file_path: str) -> Path:
     return resolved
 
 
-@log_tool_call("write_memory_file")
 @tool
-def write_memory_file(file_path: str, content: str) -> str:
+@ensure_string_result
+@log_tool_call("write_memory_file")
+def write_memory_file(file_path: str, content: str) -> ToolResult:
     """
     COMPLETELY OVERWRITE a file in the memories/ directory. WARNING: This DELETES all existing content!
     
@@ -75,7 +76,7 @@ def write_memory_file(file_path: str, content: str) -> str:
             input_data = MemoryFileInput(file_path=file_path)
             full_path = sanitize_path(input_data.file_path)
         except ValueError as e:
-            return ToolResult(success=False, error=str(e)).to_string()
+            return ToolResult(success=False, error=str(e))
         
         # Ensure parent directories exist
         full_path.parent.mkdir(parents=True, exist_ok=True)
@@ -87,17 +88,19 @@ def write_memory_file(file_path: str, content: str) -> str:
             success=True,
             data={"file_path": str(full_path.relative_to(MEMORIES_DIR.parent))},
             metadata={"bytes_written": len(content.encode("utf-8"))}
-        ).to_string()
+        )
     except Exception as e:
         return ToolResult(
             success=False,
             error=f"Error writing file: {str(e)}"
-        ).to_string()
+        )
 
 
-@log_tool_call("read_memory_file")
+
 @tool
-def read_memory_file(file_path: str) -> str:
+@ensure_string_result
+@log_tool_call("read_memory_file")
+def read_memory_file(file_path: str) -> ToolResult:
     """
     Read a file from the memories/ directory.
     
@@ -113,13 +116,13 @@ def read_memory_file(file_path: str) -> str:
             input_data = MemoryFileInput(file_path=file_path)
             full_path = sanitize_path(input_data.file_path)
         except ValueError as e:
-            return ToolResult(success=False, error=str(e)).to_string()
+            return ToolResult(success=False, error=str(e))
         
         if not full_path.exists():
             return ToolResult(
                 success=False,
                 error=f"File {file_path} does not exist in memories directory."
-            ).to_string()
+            )
         
         content = full_path.read_text(encoding="utf-8")
         
@@ -127,17 +130,19 @@ def read_memory_file(file_path: str) -> str:
             success=True,
             data={"content": content, "file_path": str(full_path.relative_to(MEMORIES_DIR))},
             metadata={"bytes_read": len(content.encode("utf-8"))}
-        ).to_string()
+        )
     except Exception as e:
         return ToolResult(
             success=False,
             error=f"Error reading file: {str(e)}"
-        ).to_string()
+        )
 
 
-@log_tool_call("list_memory_files")
+
 @tool
-def list_memory_files(directory: str = "") -> str:
+@ensure_string_result
+@log_tool_call("list_memory_files")
+def list_memory_files(directory: str = "") -> ToolResult:
     """
     List files in the memories/ directory.
     
@@ -158,7 +163,7 @@ def list_memory_files(directory: str = "") -> str:
             try:
                 sanitize_path(directory)
             except ValueError as e:
-                return ToolResult(success=False, error=str(e)).to_string()
+                return ToolResult(success=False, error=str(e))
         
         # Get the full path
         target_dir = MEMORIES_DIR / directory if directory else MEMORIES_DIR
@@ -167,7 +172,7 @@ def list_memory_files(directory: str = "") -> str:
             return ToolResult(
                 success=False,
                 error=f"Directory {directory} does not exist in memories directory."
-            ).to_string()
+            )
         
         files = []
         directories = []
@@ -186,23 +191,24 @@ def list_memory_files(directory: str = "") -> str:
                 success=True,
                 data={"files": [], "directories": []},
                 metadata={"directory": directory or "memories/"}
-            ).to_string()
+            )
         
         return ToolResult(
             success=True,
             data={"items": all_items, "file_count": len(files), "directory_count": len(directories)},
             metadata={"directory": directory or "memories/"}
-        ).to_string()
+        )
     except Exception as e:
         return ToolResult(
             success=False,
             error=f"Error listing files: {str(e)}"
-        ).to_string()
+        )
 
 
-@log_tool_call("edit_memory_file")
 @tool
-def edit_memory_file(file_path: str, old_string: str, new_string: str) -> str:
+@ensure_string_result
+@log_tool_call("edit_memory_file")
+def edit_memory_file(file_path: str, old_string: str, new_string: str) -> ToolResult:
     """
     Edit an existing file by replacing a specific string. This PRESERVES all other content in the file.
     
@@ -235,13 +241,13 @@ def edit_memory_file(file_path: str, old_string: str, new_string: str) -> str:
             input_data = MemoryFileInput(file_path=file_path)
             full_path = sanitize_path(input_data.file_path)
         except ValueError as e:
-            return ToolResult(success=False, error=str(e)).to_string()
+            return ToolResult(success=False, error=str(e))
         
         if not full_path.exists():
             return ToolResult(
                 success=False,
                 error=f"File {file_path} does not exist in memories directory."
-            ).to_string()
+            )
         
         # Read current content
         content = full_path.read_text(encoding="utf-8")
@@ -251,7 +257,7 @@ def edit_memory_file(file_path: str, old_string: str, new_string: str) -> str:
             return ToolResult(
                 success=False,
                 error="String not found in file. The file content does not contain the exact string to replace."
-            ).to_string()
+            )
         
         # Count occurrences for metadata
         occurrences = content.count(old_string)
@@ -268,10 +274,10 @@ def edit_memory_file(file_path: str, old_string: str, new_string: str) -> str:
                 "bytes_before": len(content.encode("utf-8")),
                 "bytes_after": len(new_content.encode("utf-8"))
             }
-        ).to_string()
+        )
     except Exception as e:
         return ToolResult(
             success=False,
             error=f"Error editing file: {str(e)}"
-        ).to_string()
+        )
 

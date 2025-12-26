@@ -3,9 +3,10 @@
 import csv
 import re
 from langchain_core.tools import tool
-
+from tools.core.base_tool import ToolResult, log_tool_call, ensure_string_result
 from .config import ACTIVITY_LOG_FILE
 from .utils import ensure_log_file_exists, format_activity_output
+
 
 
 def _normalize_text(text: str) -> str:
@@ -174,15 +175,13 @@ def _search_by_field(search_terms: list[str], field_name: str, search_label: str
 
 
 @tool
-def search_activity_by_people(people: str) -> str:
+@ensure_string_result
+@log_tool_call("search_activity_by_people")
+def search_activity_by_people(people: str) -> ToolResult:
     """
-    Search for activities related to specific people.
+    Use this tool to search for activities you did for Benjamin related to specific people.
     
-    This tool searches the activity log for entries where the related_people field contains
-    any of the specified people. The search is case-insensitive and uses smart matching:
-    - Word-boundary aware (finds "John" in "John Doe" but not "Johnny")
-    - Handles comma-separated values intelligently
-    - Normalizes whitespace variations
+    This tool searches the activity log for entries where specific people are mentioned. It is case-insensitive and uses smart matching.
     
     Args:
         people: Comma-separated list of people names to search for (e.g., "John Doe, Jane Smith")
@@ -192,19 +191,20 @@ def search_activity_by_people(people: str) -> str:
     """
     # Split by comma and normalize - the _search_by_field will handle further normalization
     search_terms = [term.strip() for term in people.split(",") if term.strip()]
-    return _search_by_field(search_terms, "related_people", "people")
+    return ToolResult(
+        success=True,
+        data=_search_by_field(search_terms, "related_people", "people")
+    )
 
 
 @tool
-def search_activity_by_places(places: str) -> str:
+@ensure_string_result
+@log_tool_call("search_activity_by_places")
+def search_activity_by_places(places: str) -> ToolResult:
     """
-    Search for activities related to specific places.
+    Use this tool to search for activities you did for Benjamin related to specific places.
     
-    This tool searches the activity log for entries where the related_places field contains
-    any of the specified places. The search is case-insensitive and uses smart matching:
-    - Word-boundary aware matching
-    - Handles multi-word place names (e.g., "New York")
-    - Normalizes whitespace variations
+    This tool searches the activity log for entries where specific places are mentioned. It is case-insensitive and uses smart matching.
     
     Args:
         places: Comma-separated list of place names to search for (e.g., "New York, Office")
@@ -214,19 +214,20 @@ def search_activity_by_places(places: str) -> str:
     """
     # Split by comma and normalize - the _search_by_field will handle further normalization
     search_terms = [term.strip() for term in places.split(",") if term.strip()]
-    return _search_by_field(search_terms, "related_places", "places")
+    return ToolResult(
+        success=True,
+        data=_search_by_field(search_terms, "related_places", "places")
+    )
 
 
 @tool
-def search_activity_by_topics(topics: str) -> str:
+@ensure_string_result
+@log_tool_call("search_activity_by_topics")
+def search_activity_by_topics(topics: str) -> ToolResult:
     """
-    Search for activities related to specific topics.
+    Use this tool to search for activities you did for Benjamin related to specific topics.
     
-    This tool searches the activity log for entries where the related_topics field contains
-    any of the specified topics. The search is case-insensitive and uses smart matching:
-    - Word-boundary aware matching
-    - Handles multi-word topics (e.g., "project planning")
-    - Normalizes whitespace variations
+    This tool searches the activity log for entries where specific topics are mentioned. It is case-insensitive and uses smart matching.
     
     Args:
         topics: Comma-separated list of topic names to search for (e.g., "meeting, project planning")
@@ -236,5 +237,7 @@ def search_activity_by_topics(topics: str) -> str:
     """
     # Split by comma and normalize - the _search_by_field will handle further normalization
     search_terms = [term.strip() for term in topics.split(",") if term.strip()]
-    return _search_by_field(search_terms, "related_topics", "topics")
-
+    return ToolResult(
+        success=True,
+        data=_search_by_field(search_terms, "related_topics", "topics")
+    )

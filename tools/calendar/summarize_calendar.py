@@ -8,27 +8,31 @@ from .calendar_utils import (
     format_datetime_for_api,
     get_default_calendar_id
 )
+from tools.core.base_tool import ToolResult, log_tool_call, ensure_string_result
+from langchain_core.tools import tool
 
-
+@tool
+@ensure_string_result
+@log_tool_call("summarize_calendar")
 def summarize_calendar(
-    time_range: str,
-    include_locations: bool = True,
-    group_by_day: bool = True,
-    calendar_id: str | None = None
-) -> str:
-    """Generate a natural language summary of calendar events.
+        time_range: str, 
+        include_locations: bool = True, 
+        group_by_day: bool = True, 
+        calendar_id: str | None = None) -> ToolResult:
+    """
+    Use this tool to generate a natural language summary of calendar events.
     
-    Produces a high-level overview of upcoming events, perfect for quick check-ins
-    or understanding overall schedule density.
+    This tool is great when the user asks about their schedule, upcoming events, or what's on their calendar.
+    This tool can summarize the calendar events for a given time range.
     
     Args:
-        time_range: Time range to summarize ("today", "tomorrow", "this_week", "next_week", or date range)
+        time_range: Time range to summarize (supports formats like "today", "tomorrow", "this_week", "next_week", or date range)
         include_locations: If True, includes location information in summary
         group_by_day: If True, groups events by day
         calendar_id: Optional calendar ID (defaults to 'primary')
         
     Returns:
-        Natural language summary of calendar events
+        Formatted string with summary of calendar events
     """
     try:
         # Parse time range
@@ -52,7 +56,10 @@ def summarize_calendar(
         events = events_result.get('items', [])
         
         if not events:
-            return f"Your calendar is free for {time_range}. No events scheduled."
+            return ToolResult(
+                success=False,
+                error=f"Your calendar is free for {time_range}. No events scheduled."
+            )
         
         # Process events
         events_by_day = defaultdict(list)
@@ -167,12 +174,24 @@ def summarize_calendar(
                 if include_locations and event_info['location']:
                     result += f"    📍 {event_info['location']}\n"
         
-        return result
+        return ToolResult(
+            success=True,
+            data=result
+        )
         
     except ValueError as e:
-        return f"Error: Invalid time range format - {str(e)}"
+        return ToolResult(
+            success=False,
+            error=f"Error: Invalid time range format - {str(e)}"
+        )
     except FileNotFoundError as e:
-        return f"Error: {str(e)}"
+            return ToolResult(
+            success=False,
+            error=f"Error: {str(e)}"
+        )
     except Exception as e:
-        return f"Error summarizing calendar: {str(e)}"
+        return ToolResult(
+            success=False,
+            error=f"Error summarizing calendar: {str(e)}"
+        )
 

@@ -7,22 +7,27 @@ from .calendar_utils import (
     format_datetime_for_api,
     get_default_calendar_id
 )
+from langchain_core.tools import tool
+from tools.core.base_tool import ToolResult, log_tool_call, ensure_string_result
 
-
+@tool
+@ensure_string_result
+@log_tool_call("get_calendar_schedule")
 def get_calendar_schedule(
     start_date: str,
     end_date: str,
     calendar_id: str | None = None,
     include_availability: bool = False
-) -> str:
-    """Get all calendar events in a given time range.
+) -> ToolResult:
+    """
+    Use this tool to get all calendar events in a given time range.
     
-    Use this tool when the user asks about their schedule, upcoming events, or what's on their calendar.
-    Can optionally include availability blocks (free time between events).
+    This tool is great when the user asks about their schedule, upcoming events, or what's on their calendar.
+    This tool can optionally include availability blocks (free time between events).
     
     Args:
-        start_date: Start date/time (supports "today", "tomorrow", ISO dates, etc.)
-        end_date: End date/time (same format as start_date)
+        start_date: Inclusive. Start date/time (supports ISO format only)
+        end_date: Inclusive. End date/time (supports ISO format only)
         calendar_id: Optional calendar ID (defaults to 'primary')
         include_availability: If True, also returns free time blocks between events
         
@@ -40,17 +45,29 @@ def get_calendar_schedule(
         
         # Validate time range
         if start_dt >= end_dt:
-            return f"Error: Start date ({start_date}) must be before end date ({end_date})"
+            return ToolResult(
+                success=False,
+                error=f"Start date ({start_date}) must be before end date ({end_date})"
+            )
         
         # Get calendar service - wrap in try/except to catch auth errors early
         try:
             service = get_calendar_service()
         except FileNotFoundError as e:
-            return f"Calendar authentication error: {str(e)}. Please ensure credentials.json exists and token.json is set up."
+            return ToolResult(
+                success=False,
+                error=f"Calendar authentication error: {str(e)}. Please ensure credentials.json exists and token.json is set up."
+            )
         except RuntimeError as e:
-            return f"Calendar authentication error: {str(e)}"
+            return ToolResult(
+                success=False,
+                error=f"Calendar authentication error: {str(e)}"
+            )
         except Exception as e:
-            return f"Calendar service initialization error: {str(e)}"
+            return ToolResult(
+                success=False,
+                error=f"Calendar service initialization error: {str(e)}"
+            )
         
         # Use provided calendar_id or default to 'primary'
         cal_id = calendar_id if calendar_id else get_default_calendar_id()
@@ -67,7 +84,10 @@ def get_calendar_schedule(
         events = events_result.get('items', [])
         
         if not events:
-            return f"No events found between {start_date} and {end_date}."
+            return ToolResult(
+                success=False,
+                error=f"No events found between {start_date} and {end_date}."
+            )
         
         # Process events
         event_list = []
@@ -140,27 +160,41 @@ def get_calendar_schedule(
             else:
                 result += "\n\nNo free time blocks found in this range."
         
-        return result
+        return ToolResult(
+            success=True,
+            data=result
+        )
         
     except ValueError as e:
-        return f"Error: Invalid date format - {str(e)}"
+        return ToolResult(
+            success=False,
+            error=f"Invalid date format - {str(e)}"
+        )
     except FileNotFoundError as e:
-        return f"Error: {str(e)}"
+        return ToolResult(
+            success=False,
+            error=f"Error: {str(e)}"
+        )
     except Exception as e:
-        return f"Error retrieving calendar schedule: {str(e)}"
+        return ToolResult(
+            success=False,
+            error=f"Error retrieving calendar schedule: {str(e)}"
+        )
 
 
+@tool
+@ensure_string_result
+@log_tool_call("get_event_id_from_name")
 def get_event_id_from_name(
     event_name: str,
     start_date: str | None = None,
     end_date: str | None = None,
     calendar_id: str | None = None,
     exact_match: bool = False
-) -> str:
-    """Get event ID(s) by searching for events with a matching name/title.
-    
-    Use this tool when you need to find an event ID to delete or update an event by its name.
-    Searches for events matching the given name and returns their IDs.
+) -> ToolResult:
+    """
+    Use this tool to get event ID(s) by searching for events with a matching name/title.
+    This tool is great when Benjamin mentions events by name and you need to update or delete the event.
     
     Args:
         event_name: The name/title of the event to search for
@@ -178,11 +212,20 @@ def get_event_id_from_name(
         try:
             service = get_calendar_service()
         except FileNotFoundError as e:
-            return f"Calendar authentication error: {str(e)}. Please ensure credentials.json exists and token.json is set up."
+            return ToolResult(
+                success=False,
+                error=f"Calendar authentication error: {str(e)}. Please ensure credentials.json exists and token.json is set up."
+            )
         except RuntimeError as e:
-            return f"Calendar authentication error: {str(e)}"
+            return ToolResult(
+                success=False,
+                error=f"Calendar authentication error: {str(e)}"
+            )
         except Exception as e:
-            return f"Calendar service initialization error: {str(e)}"
+            return ToolResult(
+                success=False,
+                error=f"Calendar service initialization error: {str(e)}"
+            )
         
         # Use provided calendar_id or default to 'primary'
         cal_id = calendar_id if calendar_id else get_default_calendar_id()
@@ -218,7 +261,10 @@ def get_event_id_from_name(
         events = events_result.get('items', [])
         
         if not events:
-            return f"No events found between {start_date} and {end_date}."
+            return ToolResult(
+                success=False,
+                error=f"No events found between {start_date} and {end_date}."
+            )
         
         # Search for matching events
         matching_events = []
@@ -238,7 +284,10 @@ def get_event_id_from_name(
         
         if not matching_events:
             match_type = "exact match" if exact_match else "partial match"
-            return f"No events found with {match_type} for '{event_name}' between {start_date} and {end_date}."
+            return ToolResult(
+                success=False,
+                error=f"No events found with {match_type} for '{event_name}' between {start_date} and {end_date}."
+            )
         
         # Format results
         if len(matching_events) == 1:
@@ -252,7 +301,10 @@ def get_event_id_from_name(
             result += f"  Event ID: {event_id}\n"
             result += f"  Start: {start_time_str}\n"
             result += f"\nUse this Event ID to delete or update the event."
-            return result
+            return ToolResult(
+                success=True,
+                data=result
+            )
         else:
             # Multiple matches
             result = f"Found {len(matching_events)} matching event(s) for '{event_name}':\n\n"
@@ -267,26 +319,42 @@ def get_event_id_from_name(
                 result += f"   Start: {start_time_str}\n\n"
             
             result += "Please specify which event you want to delete by providing more details (date, time, etc.) or use the Event ID directly."
-            return result
+            return ToolResult(
+                success=True,
+                data=result
+            )
         
     except ValueError as e:
-        return f"Error: Invalid date format - {str(e)}"
+        return ToolResult(
+            success=False,
+            error=f"Error: Invalid date format - {str(e)}"
+        )
     except FileNotFoundError as e:
-        return f"Error: {str(e)}"
+        return ToolResult(
+            success=False,
+            error=f"Error: {str(e)}"
+        )
     except Exception as e:
-        return f"Error finding event by name: {str(e)}"
+        return ToolResult(
+            success=False,
+            error=f"Error finding event by name: {str(e)}"
+        )
 
 
+@tool
+@ensure_string_result
+@log_tool_call("delete_calendar_event")
 def delete_calendar_event(
     event_id: str | None = None,
     event_name: str | None = None,
     start_date: str | None = None,
     calendar_id: str | None = None
-) -> str:
-    """Delete a calendar event by ID or by name.
+) -> ToolResult:
+    """
+    Use this tool to delete a calendar event by ID or by name.
     
-    Use this tool when the user wants to cancel or delete a calendar event.
-    Can delete by event ID (recommended) or by searching for event name.
+    This tool is great when the user wants to cancel or delete a calendar event.
+    This tool can delete by event ID (recommended) or by searching for event name.
     
     Args:
         event_id: Event ID to delete (preferred method)
@@ -302,11 +370,20 @@ def delete_calendar_event(
         try:
             service = get_calendar_service()
         except FileNotFoundError as e:
-            return f"Calendar authentication error: {str(e)}. Please ensure credentials.json exists and token.json is set up."
+            return ToolResult(
+                success=False,
+                error=f"Calendar authentication error: {str(e)}. Please ensure credentials.json exists and token.json is set up."
+            )
         except RuntimeError as e:
-            return f"Calendar authentication error: {str(e)}"
+            return ToolResult(
+                success=False,
+                error=f"Calendar authentication error: {str(e)}"
+            )
         except Exception as e:
-            return f"Calendar service initialization error: {str(e)}"
+            return ToolResult(
+                success=False,
+                error=f"Calendar service initialization error: {str(e)}"
+            )
         
         # Use provided calendar_id or default to 'primary'
         cal_id = calendar_id if calendar_id else get_default_calendar_id()
@@ -331,13 +408,22 @@ def delete_calendar_event(
                         break
                 
                 if not event_id:
-                    return f"Could not extract event ID from search result. {search_result}"
+                    return ToolResult(
+                        success=False,
+                        error=f"Could not extract event ID from search result. {search_result}"
+                    )
             else:
                 # No event found or multiple events found
-                return search_result
+                return ToolResult(
+                    success=False,
+                    error=search_result
+                )
         
         if not event_id:
-            return "Error: Either event_id or event_name must be provided."
+            return ToolResult(
+                success=False,
+                error="Error: Either event_id or event_name must be provided."
+            )
         
         # Get event details before deleting (for confirmation message)
         try:
@@ -350,7 +436,10 @@ def delete_calendar_event(
             start = event.get('start', {})
             start_time_str = start.get('dateTime', start.get('date', 'N/A'))
         except Exception as e:
-            return f"Error retrieving event details: {str(e)}. Event ID '{event_id}' may not exist."
+            return ToolResult(
+                success=False,
+                error=f"Error retrieving event details: {str(e)}. Event ID '{event_id}' may not exist."
+            )
         
         # Delete the event
         try:
@@ -364,15 +453,30 @@ def delete_calendar_event(
             result += f"  Start: {start_time_str}\n"
             result += f"  Event ID: {event_id}"
             
-            return result
+            return ToolResult(
+                success=True,
+                data=result
+            )
             
         except Exception as e:
-            return f"Error deleting event: {str(e)}. Event ID '{event_id}' may not exist or you may not have permission to delete it."
+            return ToolResult(
+                success=False,
+                error=f"Error deleting event: {str(e)}. Event ID '{event_id}' may not exist or you may not have permission to delete it."
+            )
         
     except ValueError as e:
-        return f"Error: Invalid input - {str(e)}"
+        return ToolResult(
+            success=False,
+            error=f"Error: Invalid input - {str(e)}"
+        )
     except FileNotFoundError as e:
-        return f"Error: {str(e)}"
+        return ToolResult(
+            success=False,
+            error=f"Error: {str(e)}"
+        )
     except Exception as e:
-        return f"Error deleting calendar event: {str(e)}"
+        return ToolResult(
+            success=False,
+            error=f"Error deleting calendar event: {str(e)}"
+        )
 
